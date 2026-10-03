@@ -1,0 +1,316 @@
+/* ARIA — fullscreen canvas, HUD styles, overlays.
+   Stage 1: canvas, menu, pause, debug readout, use-prompt.
+   Later stages append: HUD (heartbeat, battery), subtitles, cutscene overlay. */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  color: #ddd;
+  font-family: "Courier New", monospace;
+  user-select: none;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.hidden { display: none !important; }
+
+/* ---------- menu ---------- */
+#menu {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: radial-gradient(ellipse at center, rgba(30, 0, 0, 0.82), rgba(0, 0, 0, 0.97));
+  z-index: 20;
+}
+
+#menu h1 {
+  font-size: clamp(64px, 14vw, 160px);
+  letter-spacing: 0.3em;
+  padding-left: 0.3em;
+  color: #c40d0d;
+  text-shadow: 0 0 24px rgba(255, 0, 0, 0.55);
+}
+
+#menu .tagline { color: #8a6a6a; letter-spacing: 0.2em; }
+
+#begin {
+  margin-top: 12px;
+  padding: 12px 44px;
+  background: transparent;
+  color: #c40d0d;
+  border: 1px solid #c40d0d;
+  font: inherit;
+  font-size: 20px;
+  letter-spacing: 0.35em;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+#begin:hover { background: #c40d0d; color: #000; }
+
+.controls { list-style: none; text-align: center; color: #777; font-size: 14px; line-height: 1.9; margin-top: 18px; }
+.controls b { color: #aaa; }
+#version { color: #444; font-size: 12px; margin-top: 8px; }
+
+/* ---------- pause ---------- */
+#pause {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  color: #c40d0d;
+  letter-spacing: 0.25em;
+  cursor: pointer;
+  z-index: 15;
+}
+
+/* ---------- debug + prompt ---------- */
+#debug-info {
+  position: fixed;
+  top: 10px;
+  left: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(255, 120, 120, 0.8);
+  white-space: pre;
+  pointer-events: none;
+  z-index: 5;
+  text-shadow: 0 0 4px #000;
+}
+
+#prompt {
+  position: fixed;
+  left: 50%;
+  bottom: 22%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #e8c8c8;
+  font-size: 15px;
+  letter-spacing: 0.1em;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ---------- Stage 2: HUD ---------- */
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 6; }
+
+.hud-label { font-size: 10px; letter-spacing: 0.25em; color: #8a6a6a; margin-bottom: 3px; }
+
+#heart { position: absolute; left: 18px; bottom: 18px; }
+#ecg { display: block; width: 200px; height: 46px; background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(180, 60, 60, 0.35); }
+#bpm { font-size: 13px; margin-top: 3px; letter-spacing: 0.1em; color: #b08080; }
+
+#battery { position: absolute; right: 18px; bottom: 18px; width: 150px; transition: opacity 0.4s; }
+#battery.dim { opacity: 0.35; }
+#battery.low .bat-fill { animation: batblink 0.6s steps(2) infinite; }
+.bat-bar { height: 10px; background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(216, 192, 112, 0.5); }
+.bat-fill { height: 100%; width: 100%; background: #d8c070; }
+.bat-pct { font-size: 12px; color: #b0a070; margin-top: 3px; text-align: right; }
+@keyframes batblink { 50% { opacity: 0.25; } }
+
+#pulse {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 45%, rgba(170, 0, 0, 0.75) 100%);
+}
+
+/* hiding overlays */
+#hide-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 3; }
+#hide-overlay.locker {
+  background:
+    linear-gradient(#000, #000) top / 100% 38% no-repeat,
+    linear-gradient(#000, #000) bottom / 100% 38% no-repeat,
+    radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.85) 100%);
+}
+#hide-overlay.desk { background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 25%, rgba(0, 0, 0, 0.92) 100%); }
+
+/* subtitle (basic; Stage 3 restyles) */
+#subtitle {
+  position: fixed;
+  left: 50%;
+  bottom: 9%;
+  transform: translateX(-50%);
+  max-width: 70%;
+  padding: 8px 18px;
+  text-align: center;
+  font-size: 18px;
+  line-height: 1.4;
+  color: #ead0d0;
+  background: rgba(0, 0, 0, 0.6);
+  text-shadow: 0 0 6px #000;
+  pointer-events: none;
+  z-index: 7;
+}
+
+/* caught (basic until Stage 4's death scene) */
+#dead {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(60, 0, 0, 0.9);
+  color: #d01010;
+  font-size: 48px;
+  letter-spacing: 0.5em;
+  z-index: 18;
+}
+
+/* ---------- Stage 3: cutscenes, dialogue, notes ---------- */
+#cs {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 12;
+  pointer-events: none;
+}
+#cs-text {
+  max-width: 78%;
+  text-align: center;
+  font-size: clamp(22px, 3.2vw, 40px);
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  font-family: Georgia, "Times New Roman", serif;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+}
+#cs-text.fb.aria { font-style: italic; }
+#cs-text.err {
+  font-family: "Courier New", monospace;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 2px 0 #f00, -2px 0 #0ff;
+  transition: none;
+}
+
+#cs-cctv {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 13;
+  image-rendering: pixelated;
+  filter: contrast(1.15) brightness(0.95);
+  pointer-events: none;
+}
+#cs-cctv::after { content: ""; }
+#cs-cctv:not(.hidden) ~ #cs-fade { z-index: 25; }
+
+#cs-fade {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  z-index: 24;
+  pointer-events: none;
+}
+
+#cs-patch {
+  position: fixed;
+  top: 14px;
+  right: 18px;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  color: rgba(120, 220, 160, 0.75);
+  z-index: 8;
+}
+#cs-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 12%;
+  transform: translateX(-50%);
+  padding: 6px 16px;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  color: #cbb;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 8;
+}
+#cs-skip {
+  position: fixed;
+  right: 16px;
+  bottom: 12px;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  color: rgba(200, 200, 200, 0.35);
+  z-index: 26;
+}
+
+/* subtitles + intercom static */
+#dlg {
+  position: fixed;
+  left: 50%;
+  bottom: 8%;
+  transform: translateX(-50%);
+  width: min(760px, 86%);
+  padding: 10px 20px 12px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.62);
+  border-top: 1px solid rgba(180, 40, 40, 0.5);
+  opacity: 0;
+  transition: opacity 0.25s;
+  pointer-events: none;
+  z-index: 30;
+}
+#dlg.show { opacity: 1; }
+#dlg.crackle { animation: crackle 0.3s steps(3); }
+.dlg-speaker { font-size: 11px; letter-spacing: 0.35em; margin-bottom: 4px; }
+#dlg.aria .dlg-speaker { color: #d02020; }
+#dlg.you .dlg-speaker { color: #9ab; }
+.dlg-line { font-size: 19px; line-height: 1.45; color: #ecd6d6; text-shadow: 0 0 6px #000; min-height: 1.45em; }
+#dlg.you .dlg-line { color: #dfe6ea; font-style: italic; }
+@keyframes crackle {
+  0% { transform: translateX(-50%) translate(-3px, 1px); filter: hue-rotate(40deg); }
+  50% { transform: translateX(-50%) translate(4px, -1px); }
+  100% { transform: translateX(-50%); }
+}
+#static {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  opacity: 0;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  z-index: 29;
+}
+
+/* inspect note */
+#note {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(520px, 88%);
+  padding: 22px 28px 16px;
+  background: rgba(16, 12, 10, 0.94);
+  border: 1px solid #7a2a2a;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+  z-index: 27;
+  cursor: pointer;
+}
+#note h2 { font-size: 15px; letter-spacing: 0.25em; color: #d05050; margin-bottom: 12px; font-weight: normal; }
+.note-body p { font-size: 16px; line-height: 1.55; color: #e4d8cc; margin-bottom: 6px; font-family: "Courier New", monospace; }
+.note-close { margin-top: 12px; text-align: right; font-size: 11px; letter-spacing: 0.2em; color: #776; }

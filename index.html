@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ARIA</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- HUD / overlays (filled by hud.js, cutscenes.js, dialogue.js in later stages) -->
+  <div id="debug-info" class="hidden"></div>
+  <div id="prompt" class="hidden"></div>
+
+  <div id="menu">
+    <h1>ARIA</h1>
+    <p class="tagline">She learned too well.</p>
+    <button id="begin">BEGIN</button>
+    <ul class="controls">
+      <li><b>WASD</b> move &nbsp; <b>Mouse</b> look</li>
+      <li><b>Shift</b> sprint (loud) &nbsp; <b>Ctrl</b> or <b>C</b> crouch (silent)</li>
+      <li><b>F</b> flashlight &nbsp; <b>E</b> use / hide in lockers and under desks</li>
+      <li><b>1–5</b> debug: jump to a floor</li>
+    </ul>
+    <div id="version"></div>
+  </div>
+
+  <div id="pause" class="hidden"><span>PAUSED — click to resume</span></div>
+  <div id="dead" class="hidden"><span>CAUGHT</span></div>
+
+  <!-- Three.js via CDN (classic build: exposes the global THREE; works from file://) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <!-- Game scripts. Order matters: config first, main last. -->
+  <script src="js/config.js"></script>
+  <script src="js/scene.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/drone.js"></script>
+  <script src="js/aria.js"></script>
+  <script src="js/hud.js"></script>
+  <script src="js/dialogue.js"></script>
+  <script src="js/cutscenes.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
