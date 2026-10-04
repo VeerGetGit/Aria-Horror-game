@@ -21,7 +21,7 @@ const SX = SHAFT_X + 0.15; // wall centre-line, east/west of shaft
 const SZ = SHAFT_Z + 0.15; // wall centre-line, north/south of shaft
 
 const CONFIG = {
-  VERSION: '0.4.0 (Stage 4 — Endings + Death)',
+  VERSION: '0.5.0 (Stage 5 — Sound + Polish)',
   SEED: 1337,
 
   // ------------------------------------------------------------------ RENDER

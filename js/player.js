@@ -82,6 +82,7 @@ const Player = (function () {
     if (S.frozen || S.hiding) return;
     if (!S.flashlightOn && S.battery <= 0 && S.floor === -1) return;
     S.flashlightOn = !S.flashlightOn;
+    if (GameState.emit) GameState.emit('flashlight', S.flashlightOn);
   }
 
   function updateFlashlight(dt, t) {
@@ -251,7 +252,7 @@ const Player = (function () {
   function usePassage() {
     if (S.frozen || S.hiding) return;
     const p = nearestPassage();
-    if (p) teleport(p.to.floor, p.to.x, p.to.z);
+    if (p) { if (GameState.emit) GameState.emit('ladder', p); teleport(p.to.floor, p.to.x, p.to.z); }
   }
 
   function teleport(floor, x, z, yaw) {

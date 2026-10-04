@@ -172,7 +172,7 @@ const Dialogue = (function () {
   }
 
   // cut every sound that is still playing (used when the player skips a scene)
-  function stopAudio() { if (audio) { try { audio.close(); } catch (e) { /* ignore */ } audio = null; } }
+  function stopAudio() { if (typeof Sound !== 'undefined') Sound.stopOneShots(); if (audio) { try { audio.close(); } catch (e) { /* ignore */ } audio = null; } }
 
   // ------------------------------------------------------------------ static overlay
   function drawStatic() {

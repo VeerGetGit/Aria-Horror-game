@@ -180,6 +180,7 @@ const Main = (function () {
     Drone.update(sdt, t);
     World.update(sdt, t, GameState.player);
     Hud.update(dt, t);
+    Sound.update(dt);
   }
 
   function loop() {
@@ -219,10 +220,11 @@ const Main = (function () {
     Player.init(camera, canvas);
     Aria.init();
     Drone.init();
+    Sound.init();
 
     window.addEventListener('resize', onResize);
     document.addEventListener('pointerlockchange', onLockChange);
-    beginBtn.addEventListener('click', function () { setState('CUTSCENE'); });
+    beginBtn.addEventListener('click', function () { Sound.unlock(); setState('CUTSCENE'); });
     pauseEl.addEventListener('click', function () { lock(); });
     document.getElementById('version').textContent = 'v' + C.VERSION;
 

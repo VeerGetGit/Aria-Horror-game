@@ -13,6 +13,7 @@ Open `index.html` directly in a browser — no local server needed. Three.js is 
 | Ctrl or C | Crouch (silent) — `C` exists because Ctrl+W closes the browser tab |
 | F | Flashlight (battery drains only in the basement tunnels) |
 | E | Use: inspect notes / the computer / the photo, hide in a locker or under a desk (press again to come out; while ARIA hunts you, E always means hide), climb the hidden ladder hatches |
+| M | Mute / unmute all sound |
 | Space | Skip the current cutscene (opening scenes, the death scene) |
 | 1 – 5 | **Debug:** jump to Floor 2 / Floor 1 / Basement / Floor 3 / Ground |
 
@@ -31,12 +32,13 @@ js/scene.js       World: floors, rooms, stairs, props, lights, collision
 js/player.js      movement, look, sprint/crouch, flashlight, hiding, passages
 js/drone.js       drone mesh, patrols, A* navigation, vision/hearing, chase
 js/aria.js        ARIA's brain: learning, door locks, cameras, threat
+js/sound.js       Web Audio soundscape: menu pad, ambience, spatial drone, footsteps, heartbeat, all one-shots
 js/hud.js         heartbeat ECG, battery bar, proximity pulse, hide overlay
 js/dialogue.js    subtitles, intercom static, line queue, silence, ambient lines
 js/cutscenes.js   opening scenes 1-6, death scene, both endings, credits, inspect notes, scripted ambient moments
 ```
 
-Planned (Stage 5): `sound.js`, the real main menu and the final polish pass.
+Stage 5 added `sound.js` and the menu polish. Remaining: a by-ear tuning pass (see Sound notes).
 
 Scripts are plain `<script>` tags (no ES modules) so the game runs from `file://`. Modules share the global `GameState` object defined in `main.js`.
 
@@ -67,3 +69,4 @@ Scripts are plain `<script>` tags (no ES modules) so the game runs from `file://
 - **0.3.0 — Stage 3:** the six opening scenes, ARIA dialogue with intercom static and subtitles, inspectable notes, scripted ambient moments (door slams, 60 s silence, tunnel figure, vitals screens).
 - **0.2.0 — Stage 2:** drone + chase, hiding, ARIA learning (repeat hiding spot / repeat door), security cameras, HUD (heartbeat, battery, proximity pulse).
 - **0.1.0 — Stage 1:** environment + movement. All five levels modelled (office wing, research wing + break room, basement tunnels, server room, ground floor + exit), red emergency lighting with flicker, blood/bodies/props, WASD + mouse look + sprint + crouch, collision, stairs, hidden hatches, flashlight with tunnel battery.
+- **Sound (Stage 5):** everything is synthesised live (no audio files). The context starts on the first click/key (browser rule), so the menu's ominous pad and distant clangs begin then. Layers: server hum that swells toward Floor 3's core, electrical buzz, vent clicks, and in the tunnels drips, pipe groans, skittering you never see, loud breathing and a flashlight buzz on low battery. The drone is a 3D-positioned source (wheel noise + sonar ping, higher and faster in a chase, a rising sweep when it spots you), with a muffled version through floors. Footsteps (wet in the tunnels, near-silent crouched), heartbeat that follows threat, door-lock clunk, camera clicks, locker creaks. The death scene and credits fade ambience to silence. `Sound` listens to `GameState` events, so `dialogue.js`'s old fallback stays silent.

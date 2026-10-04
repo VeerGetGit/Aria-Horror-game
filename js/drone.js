@@ -247,6 +247,7 @@ const Drone = (function () {
     d.searchT = 0; d.searchPhase = 0; d.lookT = 0; d.spotTarget = null;
     d.spots = Aria.suspectSpots(d.floor, d.lastSeen);
     d.spots.sort((a, b) => Math.hypot(a.x - d.x, a.z - d.z) - Math.hypot(b.x - d.x, b.z - d.z));
+    emit('drone_lost', {});
     Aria.say('lose');
     goTo(d.lastSeen.x, d.lastSeen.z);
   }
