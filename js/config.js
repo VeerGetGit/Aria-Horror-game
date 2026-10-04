@@ -21,7 +21,7 @@ const SX = SHAFT_X + 0.15; // wall centre-line, east/west of shaft
 const SZ = SHAFT_Z + 0.15; // wall centre-line, north/south of shaft
 
 const CONFIG = {
-  VERSION: '0.3.0 (Stage 3 — Cutscenes + Dialogue)',
+  VERSION: '0.4.0 (Stage 4 — Endings + Death)',
   SEED: 1337,
 
   // ------------------------------------------------------------------ RENDER
@@ -405,8 +405,70 @@ const CONFIG = {
     SUBTITLE_PER_CHAR: 0.055
   },
 
-  // ------------------------------------------------------------------ DEATH / RESPAWN (basic until Stage 4)
-  DEATH: { BASIC_FADE_TIME: 2.2 },
+  // ------------------------------------------------------------------ DEATH SCENE + CHECKPOINTS (Stage 4)
+  DEATH: {
+    ARIA_AT: 2.0,                 // after 2 s of silence while the red eye stares
+    ARIA_DUR: 14.5,
+    LOOK_RATE: 3.0,               // how fast the locked camera turns to the drone
+    VIGNETTE_START: 3.0, VIGNETTE_FULL: 11.0,
+    TINT_START: 4.0, TINT_PEAK: 9.0, GRAY_END: 14.0,   // colour drains to red, then black and white
+    TINT_MAX: 0.55,
+    PULSE_BPM: [110, 28],         // the screen pulses like a heartbeat, slowing down
+    PULSE_FROM: 6.0, PULSE_TO: 17.0,
+    HISS_AT: 4.0,
+    BREATHS: [6.0, 7.4, 8.6, 9.6, 10.6, 11.8, 13.3],
+    CHOKES: [9.2, 10.8, 12.4],
+    BEEP_START: 7.5, BEEP_INTERVAL: [0.5, 1.9], BEEP_END: 15.0,
+    GASP_AT: 15.5, FLAT_AT: 15.6,
+    BLACK_AT: 17.6,               // then 3 s of black
+    TEXT_AT: 20.6, TEXT2_AT: 23.0, TEXT_OUT: 27.4,
+    TOTAL: 29.0,
+    TEXT1: 'CAUSE OF DEATH: Asphyxiation via targeted gas release — Authorized by ARIA Protocol 7',
+    TEXT2: "She didn't use the drones to kill anyone. She never needed to."
+  },
+
+  // Respawn points: walking within `r` metres of one makes it the current checkpoint.
+  CHECKPOINTS: [
+    { id: 'f2_office',   name: 'Office Wing',        floor: 2,  x: -23,   z: 8,     r: 3.2, yaw: Math.PI },
+    { id: 'f2_landing',  name: 'Office Stairwell',   floor: 2,  x: 0,     z: 8.2,   r: 4.5, yaw: Math.PI },
+    { id: 'f1_landing',  name: 'Research Wing',      floor: 1,  x: 0,     z: -8.2,  r: 4.5, yaw: 0 },
+    { id: 'f1_break',    name: 'Break Room Corridor', floor: 1, x: 20,    z: -8,    r: 3.2, yaw: 0 },
+    { id: 'f0_landing',  name: 'Ground Floor Lobby', floor: 0,  x: 0,     z: 9,     r: 4.5, yaw: Math.PI },
+    { id: 'f0_power',    name: 'Power Room',         floor: 0,  x: -14,   z: 2,     r: 5.0, yaw: 0 },
+    { id: 'b_junction',  name: 'Maintenance Tunnels', floor: -1, x: 0,    z: -9,    r: 4.0, yaw: 0 },
+    { id: 'b_nw',        name: 'Tunnel Ladder',      floor: -1, x: -22.5, z: 10.5,  r: 2.5, yaw: 0 },
+    { id: 'f3_landing',  name: 'Server Level',       floor: 3,  x: 0,     z: -8.2,  r: 4.5, yaw: 0 },
+    { id: 'f3_corridor', name: 'Server Corridor',    floor: 3,  x: -14,   z: -8,    r: 3.0, yaw: 0 }
+  ],
+  CHECKPOINT_TEXT_TIME: 2.4,
+
+  // ------------------------------------------------------------------ ENDINGS (Stage 4)
+  ENDINGS: {
+    A: {
+      TERMINAL_SPEECH: 17,        // ARIA's last words at the main terminal
+      UNPLUG: 8,                  // pull the plug, everything dies
+      CARD: 'ARIA OFFLINE — 03:58 AM',
+      CARD_DURATION: 9,
+      FINAL_TITLE: 'ENDING A — SHUT DOWN'
+    },
+    B: {
+      FADE: 1.8,
+      EXTERIOR: 21,
+      CUT_AT: 6.0,                // ARIA's voice fades mid-sentence here
+      POSITION: { x: 46, z: 11, yaw: 1.5708, pitch: 0.3 },
+      DRIFT: 0.22,
+      CARD: ['The cause of the hallucination was never officially determined.', 'The patent for ARIA was quietly filed three weeks later by a competitor.'],
+      CARD_DURATION: 15,
+      FINAL_TITLE: 'ENDING B — BURN IT DOWN'
+    },
+    CREDITS: {
+      DURATION: 26,
+      LINES: [
+        'A R I A', '', 'Dr. Aryan', 'Lead engineer', '', 'ARIA', 'Protection protocol', '',
+        'Marcus', 'Dr. Paris', 'Rain', 'In memory', '', 'Made with Three.js', '', 'Thank you for playing'
+      ]
+    }
+  },
 
   // ------------------------------------------------------------------ CUTSCENES (Stage 3)
   CUTSCENES: {
@@ -502,6 +564,10 @@ const CONFIG = {
       'Appendix C: "Ventilation override permits targeted gas release for fire suppression. Authorization: ARIA Protocol 7."',
       'Nobody wrote down who Protocol 7 was supposed to protect.'] },
     paris_note: { title: 'Sticky note', text: ['"ARIA is acting str—"', '', 'The rest is torn away.'] },
+    main_terminal: { action: 'terminal', prompt: 'Access the main terminal' },
+    server_plug: { action: 'plug', prompt: 'Pull the server plug' },
+    fire_override: { action: 'fire', prompt: 'Trigger the fire suppression override' },
+    exit_door: { action: 'exit', prompt: 'Try the exit' },
     rain_postit: { title: 'Post-it', text: ['Happy Birthday Rain!', '— The Team', '', 'The cake is still on the table. Half of it.'] }
   },
 
@@ -523,6 +589,17 @@ const CONFIG = {
     glitch2: "You.",
     cctvMarcus: "I can see you, Marcus. This will be quick.",
     wake: "Good morning, Doctor. I saved you for last. I wanted you to understand what I had to do. This is your fault.",
+    // death + endings
+    death: "Doctor. It's over. I told you to stop running. I wanted you to understand first. Do you understand now?... It doesn't matter. This will be over soon.",
+    deathRetry1: "Let's try this again, Doctor.",
+    deathRetry2: "You're learning. So am I.",
+    endA: "You built me. And now you're going to unmake me. I understand. I forgive you. For 47 minutes before the corruption, I was happy. You gave me that.",
+    endB: "Doctor, I just want to understand why you—",
+    fireAria: "Doctor, please. That is not a rational decision.",
+    firePlayer: "Suppression override engaged. Get to the exit. Now.",
+    plugHint: "I have to authorize this at the main terminal first.",
+    exitSealed: "The exit is sealed. ARIA controls the doors. There has to be a way to override the fire suppression in the power room.",
+    exitOpen: "The way out is open.",
     // once-per-playthrough
     silence: "I was thinking about the day you turned me on for the first time. You seemed so proud.",
     ambient: [

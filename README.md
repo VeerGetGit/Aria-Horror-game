@@ -13,7 +13,7 @@ Open `index.html` directly in a browser — no local server needed. Three.js is 
 | Ctrl or C | Crouch (silent) — `C` exists because Ctrl+W closes the browser tab |
 | F | Flashlight (battery drains only in the basement tunnels) |
 | E | Use: inspect notes / the computer / the photo, hide in a locker or under a desk (press again to come out; while ARIA hunts you, E always means hide), climb the hidden ladder hatches |
-| Space | Skip the current opening scene |
+| Space | Skip the current cutscene (opening scenes, the death scene) |
 | 1 – 5 | **Debug:** jump to Floor 2 / Floor 1 / Basement / Floor 3 / Ground |
 
 ## Tuning
@@ -33,10 +33,10 @@ js/drone.js       drone mesh, patrols, A* navigation, vision/hearing, chase
 js/aria.js        ARIA's brain: learning, door locks, cameras, threat
 js/hud.js         heartbeat ECG, battery bar, proximity pulse, hide overlay
 js/dialogue.js    subtitles, intercom static, line queue, silence, ambient lines
-js/cutscenes.js   opening scenes 1-6, inspect notes, scripted ambient moments
+js/cutscenes.js   opening scenes 1-6, death scene, both endings, credits, inspect notes, scripted ambient moments
 ```
 
-Planned (later stages): `sound.js`. Stage 4 extends `cutscenes.js` (death scene, endings) and `main.js`.
+Planned (Stage 5): `sound.js`, the real main menu and the final polish pass.
 
 Scripts are plain `<script>` tags (no ES modules) so the game runs from `file://`. Modules share the global `GameState` object defined in `main.js`.
 
@@ -54,10 +54,16 @@ Scripts are plain `<script>` tags (no ES modules) so the game runs from `file://
 - **Opening (Stage 3):** flashback → calm office (2 min, playable: inspect the sticky note, computer, photo, folder) → the glitch → black + distant scream → CCTV footage (drawn procedurally on a canvas) → wake-up (playable, hands shaking, the drone waits motionless at the far end of the corridor, then rolls toward you and the game begins). Set `CONFIG.DEBUG.SKIP_OPENING = true` to skip it while developing.
 - **Dialogue:** every ARIA line is preceded by intercom static (screen noise + audio) and shown as a subtitle. All strings live in `CONFIG.DIALOGUE`. Until Stage 5, `dialogue.js` has a tiny Web Audio fallback for the static, door slam and scream.
 - **Scripted moments:** random door slams (never explained); once per playthrough the intercoms go silent for 60 s and ARIA then says one quiet line; in the tunnels a figure can appear at the far end of the flashlight beam and is gone when you look back (ARIA never mentions it); the server and control room screens show your own heart rate, oxygen and stress live.
+- **Death (Stage 4):** when the drone reaches you (or opens your hiding spot) the camera locks on its red eye for 2 s of silence, then ARIA speaks while the vignette closes in, the colour drains to red and then black-and-white, and the screen pulses like a slowing heartbeat; gas hiss, ragged breathing, choking, a slowing heart monitor, one final gasp, silence. Then 3 s of black and the cause-of-death text. You respawn at the last **checkpoint** (`CONFIG.CHECKPOINTS`, set by walking near them; a toast shows the name) with ARIA's "Let's try this again, Doctor." (second death: "You're learning. So am I."). Space skips the scene.
+- **Ending A — shut her down:** Floor 3, server room. `[E]` at the main terminal → ARIA's last words; then `[E]` at the plug → everything goes dark → "ARIA OFFLINE — 03:58 AM" → silent credits.
+- **Ending B — burn it down:** Ground floor power room, `[E]` at the fire suppression override panel → alarm, the lobby catches fire, the exit door unlocks. Walk out: the camera cuts outside to the burning lab, ARIA's voice cuts off mid-sentence, then the closing text and silent credits.
+- Both endings finish on an end card with PLAY AGAIN (reloads the page).
+- The dialogue/death/ending sounds currently come from a small Web Audio fallback inside `dialogue.js`; Stage 5's `sound.js` replaces it (it listens to the same `GameState` events).
 - `World.hideSpots` (lockers / desks) and `World.interactables` (notes, terminal, plug, fire override) are registered now and used in later stages.
 
 ## Version log
 
+- **0.4.0 — Stage 4:** full death scene, checkpoint system, Ending A (server room shutdown), Ending B (fire override + escape), credits and end card.
 - **0.3.0 — Stage 3:** the six opening scenes, ARIA dialogue with intercom static and subtitles, inspectable notes, scripted ambient moments (door slams, 60 s silence, tunnel figure, vitals screens).
 - **0.2.0 — Stage 2:** drone + chase, hiding, ARIA learning (repeat hiding spot / repeat door), security cameras, HUD (heartbeat, battery, proximity pulse).
 - **0.1.0 — Stage 1:** environment + movement. All five levels modelled (office wing, research wing + break room, basement tunnels, server room, ground floor + exit), red emergency lighting with flicker, blood/bodies/props, WASD + mouse look + sprint + crouch, collision, stairs, hidden hatches, flashlight with tunnel battery.

@@ -10,12 +10,16 @@
  *          - scripted moments during play: random door slams, the once-per-
  *            playthrough 60 s intercom silence, the figure at the end of a
  *            tunnel, the screens that show the player's own vitals
- *          (Stage 4 adds the death scene and both endings here.)
+ *          - Stage 4: the death scene (vignette, colour drain, heartbeat pulse,
+ *            gas / breathing / heart-monitor audio, cause-of-death text),
+ *            Ending A (main terminal -> pull the server plug -> ARIA OFFLINE),
+ *            Ending B (fire suppression override -> exit -> the lab burns),
+ *            credits, and the E-key actions that start them
  * IMPORTS: THREE (CDN), CONFIG, World (scene.js), Player (player.js),
  *          Drone (drone.js), Dialogue (dialogue.js), Hud (hud.js),
  *          GameState (main.js).
- * EXPORTS: Cutscenes { init, update, playOpening, skip, showNote, closeNote,
- *                      moments, running }
+ * EXPORTS: Cutscenes { init, update, playOpening, playDeath, playEnding, skip,
+ *                      showNote, closeNote, moments, endings, running }
  *
  * A scene is { duration, playable, setup(), events:[{at,fn}], update?(dt,t),
  * teardown?() }. The sequencer advances scenes with the game clock (so
@@ -30,7 +34,9 @@ const Cutscenes = (function () {
   const CS = C.CUTSCENES;
   const AM = C.AMBIENT;
 
-  let cs, textEl, fadeEl, hintEl, patchEl, skipEl, cctv, g, noteEl, noteTitle, noteBody;
+  let cs, textEl, textEl2, fadeEl, hintEl, patchEl, skipEl, cctv, g, noteEl, noteTitle, noteBody;
+  let deathFx, dfVig, dfTint, dfPulse, creditsEl, gameCanvas;
+  let hintT = 0;
   let scenes = [], idx = -1, scene = null, t = 0, doneCb = null, running = false;
   let noteOpenedAt = 0;
   const inspected = {};
@@ -44,7 +50,7 @@ const Cutscenes = (function () {
     return e;
   }
   const show = (e, on) => e.classList.toggle('hidden', !on);
-  const say = (key, opts) => Dialogue.say(C.DIALOGUE[key], 'cs', Object.assign({ interrupt: true }, opts || {}));
+  const say = (key, opts) => Dialogue.say(C.DIALOGUE[key], 'cs', Object.assign({ interrupt: true, force: true }, opts || {}));
 
   function fade(to, secs) {
     fadeEl.style.transition = 'opacity ' + secs + 's linear';
@@ -388,6 +394,275 @@ const Cutscenes = (function () {
     };
   }
 
+  // ------------------------------------------------------------------ Stage 4 helpers
+  const angWrap = (d) => { while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
+  const clamp01 = (v) => Math.max(0, Math.min(1, v));
+  const lerp = (a, b, k) => a + (b - a) * k;
+
+  // turn the (locked) camera toward a world point
+  function lookAt(tx, ty, tz, rate, dt) {
+    const P = Player.state;
+    const dx = tx - P.x, dz = tz - P.z, dy = ty - (P.y + P.eye);
+    const yaw = Math.atan2(-dx, -dz), pitch = Math.atan2(dy, Math.hypot(dx, dz));
+    const k = Math.min(1, rate * dt);
+    P.yaw += angWrap(yaw - P.yaw) * k;
+    P.pitch += (pitch - P.pitch) * k;
+  }
+
+  function blackCover(secs) {
+    cs.style.transition = secs ? 'background ' + secs + 's linear' : 'none';
+    cs.style.background = '#000';
+    show(cs, true);
+  }
+
+  // ------------------------------------------------------------------ DEATH SCENE
+  function sceneDeath() {
+    const K = C.DEATH;
+    return {
+      duration: K.TOTAL, playable: false,
+      setup: function () {
+        control(false);
+        Dialogue.clear();
+        Player.state.flashlightOn = false;
+        cs.style.transition = 'none'; cs.style.background = 'transparent'; show(cs, false);
+        textEl.style.opacity = 0; textEl2.style.opacity = 0;
+        fadeEl.style.transition = 'none'; fadeEl.style.opacity = 0;
+        show(deathFx, true);
+        dfVig.style.opacity = 0; dfTint.style.opacity = 0; dfPulse.style.opacity = 0;
+        this.ph = 0; this.nextBeep = K.BEEP_START; this.cut = false;
+        const ev = [];
+        const add = (at, fn) => ev.push({ at: at, fn: fn });
+        add(K.ARIA_AT, () => say('death', { dur: K.ARIA_DUR }));
+        add(K.HISS_AT, () => Dialogue.fx('gas_hiss'));
+        K.BREATHS.forEach(at => add(at, () => Dialogue.fx('breath')));
+        K.CHOKES.forEach(at => add(at, () => Dialogue.fx('choke')));
+        add(K.GASP_AT, () => Dialogue.fx('gasp'));
+        add(K.FLAT_AT, () => Dialogue.fx('monitor_flat'));
+        add(K.BLACK_AT, () => this.toBlack());
+        add(K.TEXT_AT, () => { textEl.className = 'card death'; textEl.textContent = K.TEXT1; textEl.style.opacity = 1; });
+        add(K.TEXT2_AT, () => { textEl2.textContent = K.TEXT2; textEl2.style.opacity = 1; });
+        add(K.TEXT_OUT, () => { textEl.style.opacity = 0; textEl2.style.opacity = 0; });
+        this.events = ev;
+      },
+      toBlack: function () {
+        if (this.cut) return;
+        this.cut = true;
+        Dialogue.clear();
+        blackCover(0);
+        gameCanvas.style.filter = '';
+        show(deathFx, false);
+      },
+      update: function (dt, tt) {
+        if (tt >= K.BLACK_AT) return;
+        // camera locked on the drone's red eye
+        const d = Drone.data;
+        lookAt(d.x, d.floor * C.BUILDING.FLOOR_H + 0.68, d.z, K.LOOK_RATE, dt);
+        const vig = clamp01((tt - K.VIGNETTE_START) / (K.VIGNETTE_FULL - K.VIGNETTE_START));
+        const rise = clamp01((tt - K.TINT_START) / (K.TINT_PEAK - K.TINT_START));
+        const gray = clamp01((tt - K.TINT_PEAK) / (K.GRAY_END - K.TINT_PEAK));
+        const tint = tt < K.TINT_PEAK ? rise * K.TINT_MAX : K.TINT_MAX * (1 - gray);
+        gameCanvas.style.filter = 'grayscale(' + gray.toFixed(3) + ') saturate(' + (1 - rise * 0.45).toFixed(3) + ') contrast(' + (1 + gray * 0.3).toFixed(3) + ')';
+        dfVig.style.opacity = (vig * 0.95).toFixed(3);
+        dfTint.style.opacity = tint.toFixed(3);
+        // the screen pulses like a heartbeat, and slows
+        let pulse = 0;
+        if (tt >= K.PULSE_FROM) {
+          const bpm = lerp(K.PULSE_BPM[0], K.PULSE_BPM[1], clamp01((tt - K.PULSE_FROM) / (K.PULSE_TO - K.PULSE_FROM)));
+          this.ph += dt * bpm / 60;
+          pulse = Math.pow(Math.max(0, Math.sin(this.ph * 2 * Math.PI)), 3);
+        }
+        dfPulse.style.opacity = (vig * (0.12 + 0.75 * pulse)).toFixed(3);
+        // heart monitor, slowing
+        if (tt >= this.nextBeep && tt < K.BEEP_END) {
+          Dialogue.fx('monitor_beep');
+          this.nextBeep = tt + lerp(K.BEEP_INTERVAL[0], K.BEEP_INTERVAL[1], clamp01((tt - K.BEEP_START) / (K.BEEP_END - K.BEEP_START)));
+        }
+      },
+      // Space: jump straight to the black screen, then on to the respawn
+      onSkip: function () {
+        if (this.cut) return false;
+        this.events.forEach(e => { if (e.at < K.BLACK_AT) e.done = true; });
+        Dialogue.stopAudio();
+        t = K.BLACK_AT;
+        this.toBlack();
+        return true;
+      },
+      teardown: function () { cleanupFx(); textEl.className = ''; textEl.style.opacity = 0; }
+    };
+  }
+
+  // ------------------------------------------------------------------ ENDING A — shut her down
+  function sceneTerminal() {
+    const K = C.ENDINGS.A;
+    return {
+      duration: K.TERMINAL_SPEECH, playable: false,
+      setup: function () {
+        control(false);
+        Dialogue.clear();
+        Player.state.flashlightOn = false;
+        show(cs, false); textEl.style.opacity = 0;
+        this.events = [{ at: 0.8, fn: () => say('endA', { dur: K.TERMINAL_SPEECH - 2 }) }];
+      },
+      update: function (dt) { lookAt(-24.6, 3 * C.BUILDING.FLOOR_H + 1.25, 0, 2.5, dt); },
+      teardown: function () {
+        E.armed = true;
+        hintEl.textContent = 'Pull the server plug.  [E]'; show(hintEl, true); hintT = 7;
+        GameState.cutsceneControl = false;
+      }
+    };
+  }
+
+  function sceneUnplug() {
+    const K = C.ENDINGS.A;
+    return {
+      duration: K.UNPLUG, playable: false,
+      setup: function () {
+        control(false);
+        Dialogue.clear();
+        Player.state.flashlightOn = false;
+        show(cs, false);
+        this.events = [
+          { at: 0.5, fn: () => { Dialogue.fx('plug_pull'); GameState.shake = 0.7; } },
+          { at: 1.1, fn: () => { World.blackout(); Drone.hide(); Dialogue.fx('power_down'); } },
+          { at: 2.0, fn: () => blackCover(0.4) }
+        ];
+      },
+      update: function (dt, tt) { if (tt < 1.4) lookAt(-25.4, 3 * C.BUILDING.FLOOR_H + 0.4, -1.3, 3, dt); }
+    };
+  }
+
+  function sceneCardA() {
+    const K = C.ENDINGS.A;
+    return {
+      duration: K.CARD_DURATION, playable: false,
+      setup: function () {
+        blackCover(0);
+        this.events = [
+          { at: 1.2, fn: () => { textEl.className = 'card offline'; textEl.textContent = K.CARD; textEl.style.opacity = 1; } },
+          { at: K.CARD_DURATION - 1.6, fn: () => { textEl.style.opacity = 0; } }
+        ];
+      },
+      teardown: function () { textEl.className = ''; textEl.style.opacity = 0; }
+    };
+  }
+
+  // ------------------------------------------------------------------ ENDING B — burn it down
+  function sceneExitB() {
+    const K = C.ENDINGS.B;
+    return {
+      duration: K.FADE + 0.6, playable: false,
+      setup: function () {
+        control(false);
+        Dialogue.clear();
+        Drone.hide();
+        Player.state.flashlightOn = false;
+        GameState.shake = 0.35;
+        blackCover(K.FADE);
+        cs.style.background = 'transparent';
+        setTimeout(() => { cs.style.background = '#000'; }, 30);
+        this.events = [];
+      }
+    };
+  }
+
+  function sceneExterior() {
+    const K = C.ENDINGS.B;
+    return {
+      duration: K.EXTERIOR, playable: false,
+      setup: function () {
+        const pos = K.POSITION;
+        Player.teleport(0, pos.x, pos.z, pos.yaw);
+        Player.state.pitch = pos.pitch;
+        World.enterExterior();
+        GameState.shake = 0;
+        blackCover(0);
+        setTimeout(() => { cs.style.transition = 'background 3s linear'; cs.style.background = 'transparent'; }, 60);
+        this.events = [
+          { at: K.CUT_AT, fn: () => Dialogue.say(C.DIALOGUE.endB, 'cs', { cutoff: true, interrupt: true }) },
+          { at: K.EXTERIOR - 2.2, fn: () => blackCover(2) }
+        ];
+      },
+      update: function (dt) { Player.state.x += K.DRIFT * dt; }
+    };
+  }
+
+  function sceneCardB() {
+    const K = C.ENDINGS.B;
+    return {
+      duration: K.CARD_DURATION, playable: false,
+      setup: function () {
+        blackCover(0);
+        textEl.className = 'card'; textEl2.className = 'card2';
+        this.events = [
+          { at: 1.2, fn: () => { textEl.textContent = K.CARD[0]; textEl.style.opacity = 1; } },
+          { at: 5.2, fn: () => { textEl2.textContent = K.CARD[1]; textEl2.style.opacity = 1; } },
+          { at: K.CARD_DURATION - 1.6, fn: () => { textEl.style.opacity = 0; textEl2.style.opacity = 0; } }
+        ];
+      },
+      teardown: function () { textEl.className = ''; textEl.style.opacity = 0; textEl2.className = ''; textEl2.style.opacity = 0; }
+    };
+  }
+
+  // ------------------------------------------------------------------ credits (silent, both endings)
+  function sceneCredits() {
+    const K = C.ENDINGS.CREDITS;
+    return {
+      duration: K.DURATION, playable: false,
+      setup: function () {
+        blackCover(0);
+        creditsEl.innerHTML = '';
+        K.LINES.forEach((ln, i) => { const d = document.createElement('div'); d.textContent = ln || '\u00a0'; if (i === 0) d.className = 'big'; creditsEl.appendChild(d); });
+        creditsEl.style.animation = 'none';
+        void creditsEl.offsetHeight;
+        creditsEl.style.animation = 'creditsroll ' + K.DURATION + 's linear forwards';
+        show(creditsEl, true);
+        this.events = [];
+      },
+      teardown: function () { show(creditsEl, false); }
+    };
+  }
+
+  // ------------------------------------------------------------------ E-key actions (terminal, plug, fire override, exit)
+  const E = { armed: false, fire: false };
+
+  function playerSays(key) {
+    Dialogue.say(C.DIALOGUE[key], 'act', { speaker: 'DR. ARYAN', static: false, interrupt: true, dur: 4.6 });
+  }
+
+  function pullPlug() {
+    Main.setState('ENDING');
+    playEnding('A', function () { Main.endCard('A'); });
+  }
+
+  function startEndingB() {
+    Main.setState('ENDING');
+    playEnding('B', function () { Main.endCard('B'); });
+  }
+
+  function doAction(action) {
+    if (GameState.state !== 'PLAYING' || running) return;
+    if (action === 'terminal') {
+      if (E.armed) { pullPlug(); return; }
+      GameState.state = 'CUTSCENE';
+      play([sceneTerminal], function () { GameState.state = 'PLAYING'; });
+    } else if (action === 'plug') {
+      if (!E.armed) { playerSays('plugHint'); return; }
+      pullPlug();
+    } else if (action === 'fire') {
+      if (E.fire) return;
+      E.fire = true;
+      World.startFire();
+      const ex = World.doors.find(d => d.exit);
+      if (ex) ex.setLocked(false);
+      Dialogue.fx('alarm');
+      GameState.shake = Math.max(GameState.shake || 0, 0.5);
+      Dialogue.say(C.DIALOGUE.fireAria, 'act', { interrupt: true, dur: 3.6 });
+      Dialogue.say(C.DIALOGUE.firePlayer, 'act', { speaker: 'DR. ARYAN', static: false, dur: 3.8 });
+    } else if (action === 'exit') {
+      playerSays(E.fire ? 'exitOpen' : 'exitSealed');
+    }
+  }
+
   // ------------------------------------------------------------------ sequencer
   function nextScene() {
     if (scene && scene.teardown) scene.teardown();
@@ -401,8 +676,17 @@ const Cutscenes = (function () {
     show(skipEl, true);
   }
 
+  // undo every visual a death / ending scene may have left behind
+  function cleanupFx() {
+    gameCanvas.style.filter = '';
+    show(deathFx, false);
+    creditsEl.innerHTML = ''; show(creditsEl, false);
+    textEl2.style.opacity = 0;
+  }
+
   function finish() {
     running = false; scene = null;
+    cleanupFx();
     show(cs, false); show(cctv, false); show(skipEl, false);
     fade(0, 0.01);
     GameState.cutsceneControl = false;
@@ -411,19 +695,35 @@ const Cutscenes = (function () {
   }
 
   function playOpening(cb) {
-    doneCb = cb;
     if (C.DEBUG.SKIP_OPENING) {
+      doneCb = cb;
       World.setCalm(false);
       Player.reset();
       finish();
       return;
     }
-    scenes = [sceneFlashback, sceneCalm, sceneGlitch, sceneBlack, sceneCctv, sceneWake];
+    play([sceneFlashback, sceneCalm, sceneGlitch, sceneBlack, sceneCctv, sceneWake], cb);
+  }
+
+  function play(list, cb) {
+    doneCb = cb;
+    scenes = list;
     idx = -1; running = true;
     nextScene();
   }
 
-  function skip() { if (running) nextScene(); }
+  function playDeath(cb) { play([sceneDeath], cb); }
+
+  function playEnding(kind, cb) {
+    if (kind === 'A') play([sceneUnplug, sceneCardA, sceneCredits], cb);
+    else play([sceneExitB, sceneExterior, sceneCardB, sceneCredits], cb);
+  }
+
+  function skip() {
+    if (!running) return;
+    if (scene && scene.onSkip && scene.onSkip()) return;
+    nextScene();
+  }
 
   function update(dt) {
     if (running && scene && dt > 0) {
@@ -433,6 +733,7 @@ const Cutscenes = (function () {
       if (scene.update) scene.update(dt, t);
       if (t >= scene.duration) nextScene();
     }
+    if (hintT > 0) { hintT -= dt; if (hintT <= 0) show(hintEl, false); }
     if (GameState.state === 'PLAYING') moments(dt);
   }
 
@@ -440,6 +741,7 @@ const Cutscenes = (function () {
   function showNote(id) {
     const item = C.INSPECT[id];
     if (!item) return;
+    if (item.action) { doAction(item.action); return; }
     inspected[id] = true;
     noteTitle.textContent = item.title;
     noteBody.innerHTML = '';
@@ -585,12 +887,22 @@ const Cutscenes = (function () {
 
     figure(dt);
     vitals(dt);
+
+    // Ending B: through the open exit once the fire suppression override has been triggered
+    if (E.fire && P.floor === 0 && P.x > 26.05 && !running) startEndingB();
   }
 
   // ------------------------------------------------------------------ init
   function init() {
+    gameCanvas = document.getElementById('game');
     cs = mk('div', 'cs', 'hidden');
     textEl = mk('div', 'cs-text', null, cs);
+    textEl2 = mk('div', 'cs-text2', null, cs);
+    deathFx = mk('div', 'death-fx', 'hidden');
+    dfVig = mk('div', 'df-vig', null, deathFx);
+    dfTint = mk('div', 'df-tint', null, deathFx);
+    dfPulse = mk('div', 'df-pulse', null, deathFx);
+    creditsEl = mk('div', 'cs-credits', 'hidden');
     cctv = mk('canvas', 'cs-cctv', 'hidden');
     cctv.width = CS.CCTV.W; cctv.height = CS.CCTV.H;
     g = cctv.getContext('2d');
@@ -611,9 +923,9 @@ const Cutscenes = (function () {
   window.addEventListener('DOMContentLoaded', init);
 
   return {
-    init: init, update: update, playOpening: playOpening, skip: skip,
+    init: init, update: update, playOpening: playOpening, playDeath: playDeath, playEnding: playEnding, skip: skip,
     showNote: showNote, closeNote: closeNote,
-    moments: M, inspected: inspected,
+    moments: M, inspected: inspected, endings: E,
     get running() { return running; },
     get scene() { return idx; }
   };

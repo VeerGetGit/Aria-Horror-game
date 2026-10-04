@@ -45,6 +45,9 @@ const World = (function () {
   const vitalsPanels = [];  // canvas wall screens that show the player's vitals (Stage 3)
   const calmObjs = { gore: [], blind: null };
   let tagList = null;       // when set, decals created are collected here
+  const fire = { on: false, t: 0, sprites: [] };                       // Ending B: the ground floor burns
+  const ext = { group: null, active: false, t: 0, windows: [], flames: [], lights: [] };   // Ending B: the view from outside
+  let blackoutOn = false;   // Ending A: ARIA is offline, everything dies
   const mats = {};
   const themeMats = {};
   const tex = {};
@@ -101,6 +104,16 @@ const World = (function () {
       g.strokeStyle = 'rgba(0,0,0,0.2)'; g.lineWidth = 2;
       g.beginPath(); g.moveTo(s / 2, 0); g.lineTo(s / 2, s); g.moveTo(0, s / 2); g.lineTo(s, s / 2); g.stroke();
     });
+    tex.flame = (function () {
+      const c = document.createElement('canvas'); c.width = 64; c.height = 128;
+      const g = c.getContext('2d');
+      // a soft blob that is fully transparent before the texture edge (sprites stretch it into a flame)
+      const gr = g.createRadialGradient(32, 78, 1, 32, 64, 31);
+      gr.addColorStop(0, 'rgba(255,245,180,1)'); gr.addColorStop(0.25, 'rgba(255,170,50,0.92)');
+      gr.addColorStop(0.55, 'rgba(220,70,10,0.45)'); gr.addColorStop(0.85, 'rgba(120,10,0,0.08)'); gr.addColorStop(1, 'rgba(120,0,0,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 64, 128);
+      return new THREE.CanvasTexture(c);
+    })();
     tex.hand = makeTexture(128, (g, s) => {
       g.clearRect(0, 0, s, s);
       g.fillStyle = 'rgba(70,5,5,0.92)';
@@ -345,7 +358,7 @@ const World = (function () {
       }
     }
     for (let i = 0; i < blinkMats.length; i++) {
-      const on = Math.sin(t * L.LED_BLINK_RATES[i] * 3.1 + i * 1.7) > -0.2;
+      const on = !blackoutOn && Math.sin(t * L.LED_BLINK_RATES[i] * 3.1 + i * 1.7) > -0.2;
       blinkMats[i].color.setHex(on ? L.LED_COLOR_ON : L.LED_COLOR_OFF);
     }
   }
@@ -396,6 +409,7 @@ const World = (function () {
     doors.push(door);
     if (o.exit) {
       addFixture({ floor: f, x: axis === 'x' ? at : c - 0.6, y: f * H + 2.7, z: axis === 'x' ? c : at, color: 0x22ff66, intensity: 0.7, distance: 8, size: [0.9, 0.2], mode: 'steady' });
+      interactables.push({ id: 'exit_door', floor: f, x: axis === 'x' ? at : c - 0.3, y: 1.4, z: axis === 'x' ? c : at });
       const signZ = axis === 'x' ? c : at;
       textPlane(f, c - 0.18, 2.6, signZ, 0.9, 0.3, ['EXIT'], 'w', { bg: '#0b3d1a', color: '#4dff7a', size: 34, family: 'Arial, sans-serif', px: 256 });
     }
@@ -690,7 +704,7 @@ const World = (function () {
     groups[f].add(m);
     const off = { n: [0, 0.4], s: [0, -0.4], e: [0.4, 0], w: [-0.4, 0] }[facing] || [0, 0];
     addFixture({ floor: f, x: x + off[0], y: f * H + y, z: z + off[1], color: 0x2f6bff, intensity: 0.6, distance: 6, visible: false, mode: 'steady' });
-    vitalsPanels.push({ floor: f, ctx: g, tex: tx, w: c.width, h: c.height, x: x, z: z });
+    vitalsPanels.push({ floor: f, ctx: g, tex: tx, w: c.width, h: c.height, x: x, z: z, mesh: m });
   }
 
   function decorFixture(f, x, z, o) {
@@ -1146,7 +1160,7 @@ const World = (function () {
   }
 
   function setActiveFloor(f) {
-    if (f === curFloor) return;
+    if (ext.active || f === curFloor) return;
     curFloor = f;
     Object.keys(groups).forEach(k => { groups[k].visible = Math.abs(+k - f) <= C.RENDER.ACTIVE_FLOOR_RANGE; });
     const a = L.AMBIENT[String(f)];
@@ -1154,6 +1168,110 @@ const World = (function () {
       ambient.color.setHex(a.color); ambient.intensity = a.intensity;
       scene.fog.color.setHex(a.fog); scene.fog.density = a.density;
       scene.background.setHex(a.fog);
+    }
+  }
+
+  // ------------------------------------------------------------------ Ending A: blackout
+  function blackout() {
+    blackoutOn = true;
+    fixtures.forEach(fx => { fx.suppressed = true; });
+    vitalsPanels.forEach(p => { p.mesh.visible = false; });
+    ambient.intensity = 0.015;
+  }
+
+  // ------------------------------------------------------------------ Ending B: fire + exterior
+  function makeFlame(parent, x, y, z, w, h, color) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex.flame, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, color: color || 0xffffff }));
+    sp.scale.set(w, h, 1); sp.position.set(x, y, z);
+    parent.add(sp);
+    return { s: sp, w: w, h: h, ph: rand() * 6.28 };
+  }
+
+  // Fire suppression override: the ground floor catches fire.
+  function startFire() {
+    if (fire.on) return;
+    fire.on = true; fire.t = 0;
+    const g = groups[0];
+    for (let i = 0; i < 18; i++) fire.sprites.push(makeFlame(g, rr(-23, 23), 1.0, rr(7, 15.4), rr(1.4, 2.4), rr(2.0, 3.2)));
+    for (let i = 0; i < 4; i++) fire.sprites.push(makeFlame(g, rr(-24, -6), 0.9, rr(-5, 5), 1.6, 2.4));
+    [[-18, 9], [-4, 13], [10, 9], [20, 13], [-18, 0]].forEach(p => addFixture({ floor: 0, x: p[0], y: 1.8, z: p[1], color: 0xff7a20, intensity: 1.6, distance: 12, mode: 'flicker', visible: false }));
+    // the red emergency lights give way to orange
+    fixtures.forEach(fx => { if (fx.floor === 0 && fx.group === 'corridor') { fx.color = 0xff5a10; fx.baseColor.setHex(0xff5a10); } });
+  }
+
+  function buildExterior() {
+    const g = new THREE.Group();
+    g.visible = false;
+    scene.add(g);
+    ext.group = g;
+    // ground + building shell
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), lambert(0x0c120d));
+    ground.rotation.x = -Math.PI / 2; ground.position.y = -0.05; g.add(ground);
+    const lot = new THREE.Mesh(new THREE.PlaneGeometry(40, 70), lambert(0x1a1c1e));
+    lot.rotation.x = -Math.PI / 2; lot.position.set(52, -0.03, 4); g.add(lot);
+    const F = B.FOOTPRINT, top = 3 * H + B.CEIL_H + B.SLAB_T;
+    const shell = new THREE.Mesh(new THREE.BoxGeometry(F.x2 - F.x1 + 0.6, top, F.z2 - F.z1 + 0.6), lambert(0x4a4d52, { map: tex.wall }));
+    shell.position.set(0, top / 2, 0); g.add(shell);
+    // glowing windows on the east and south faces
+    const addWin = (x, y, z, rotY, burn) => {
+      const mat = new THREE.MeshBasicMaterial({ color: 0xff7a20 });
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 1.6), mat);
+      m.position.set(x, y, z); m.rotation.y = rotY; g.add(m);
+      ext.windows.push({ mat: mat, ph: rand() * 6.28, lvl: burn });
+      if (burn > 0.45) ext.flames.push(makeFlame(g, x + Math.sin(rotY) * 0.3, y, z + Math.cos(rotY) * 0.3, rr(2.0, 3.2), rr(3.0, 5.0)));
+    };
+    for (let fl = 0; fl < 4; fl++) {
+      for (let z = -12; z <= 12; z += 4) addWin(F.x2 + 0.32, fl * H + 1.9, z, Math.PI / 2, rand() * (0.4 + fl * 0.2));
+      for (let x = -21; x <= 21; x += 6) addWin(x, fl * H + 1.9, F.z1 - 0.32, Math.PI, rand() * 0.6);
+    }
+    // the open exit
+    const door = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.3), new THREE.MeshBasicMaterial({ color: 0xff8a30 }));
+    door.position.set(F.x2 + 0.33, 1.15, 12); door.rotation.y = Math.PI / 2; g.add(door);
+    // stars
+    const pts = [];
+    for (let i = 0; i < 500; i++) { const a = rand() * 6.28, e = 0.15 + rand() * 1.3, r = 220; pts.push(Math.cos(a) * Math.cos(e) * r, Math.sin(e) * r, Math.sin(a) * Math.cos(e) * r); }
+    const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    g.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xaab4d0, size: 1.4, sizeAttenuation: false, fog: false })));
+    // light spill (kept in the scene at zero intensity so the shader light count never changes)
+    [[34, 5, 2], [34, 10, -9]].forEach(p => {
+      const l = new THREE.PointLight(0xff6a20, 0, 70, 1.4); l.position.set(p[0], p[1], p[2]); scene.add(l); ext.lights.push(l);
+    });
+    const moon = new THREE.DirectionalLight(0x5070b0, 0); moon.position.set(-40, 80, 60); scene.add(moon); ext.lights.push(moon);
+  }
+
+  // Cut to the view from outside the burning lab.
+  function enterExterior() {
+    ext.active = true; ext.t = 0;
+    Object.keys(groups).forEach(k => { groups[k].visible = false; });
+    ext.group.visible = true;
+    ambient.color.setHex(0x182040); ambient.intensity = 0.55;
+    scene.fog.color.setHex(0x03040a); scene.fog.density = 0.011;
+    scene.background.setHex(0x03040a);
+  }
+
+  function updateExtras(dt, t) {
+    if (fire.on) {
+      fire.t += dt;
+      const grow = Math.min(1.5, 0.45 + fire.t * 0.22);
+      fire.sprites.forEach(f => {
+        const k = 1 + 0.22 * Math.sin(t * 9 + f.ph) + 0.12 * Math.sin(t * 17 + f.ph * 2);
+        f.s.scale.set(f.w * k * grow, f.h * (k + 0.1) * grow, 1);
+      });
+    }
+    if (ext.active) {
+      ext.t += dt;
+      const burn = Math.min(1, 0.25 + ext.t * 0.05);
+      ext.windows.forEach(w => {
+        const k = (0.45 + 0.55 * w.lvl) * burn * (0.78 + 0.22 * Math.sin(t * 7 + w.ph) * Math.sin(t * 3.1 + w.ph));
+        w.mat.color.setRGB(Math.min(1, 1.1 * k), 0.42 * k, 0.1 * k);
+      });
+      ext.flames.forEach(f => {
+        const k = 1 + 0.25 * Math.sin(t * 8 + f.ph) + 0.15 * Math.sin(t * 15 + f.ph * 3);
+        f.s.scale.set(f.w * k * burn * 1.3, f.h * (k + 0.15) * burn * 1.3, 1);
+      });
+      ext.lights[0].intensity = 2.4 * burn * (0.85 + 0.15 * Math.sin(t * 9));
+      ext.lights[1].intensity = 2.0 * burn * (0.85 + 0.15 * Math.sin(t * 7 + 2));
+      ext.lights[2].intensity = 0.35;
     }
   }
 
@@ -1204,6 +1322,7 @@ const World = (function () {
     for (let f = 0; f <= B.FLOOR_MAX; f++) buildFloor(f);
     buildBasement();
     buildPassages();
+    buildExterior();
 
     for (let i = 0; i < L.POOL_SIZE; i++) {
       const light = new THREE.PointLight(0xff2010, 0, 10, 2);
@@ -1215,9 +1334,11 @@ const World = (function () {
 
   function update(dt, t, playerPos) {
     updateFixtures(dt, t);
+    updateExtras(dt, t);
     if (t - lastAssign > L.REASSIGN_INTERVAL) { lastAssign = t; assignLights(playerPos.x, playerPos.y + 1.5, playerPos.z); }
     for (let i = 0; i < lightPool.length; i++) {
       const p = lightPool[i];
+      if (ext.active) { p.light.intensity = 0; continue; }
       if (p.fx) {
         p.fade = Math.min(1, p.fade + dt * L.FADE_SPEED);
         p.light.intensity = p.fx.intensity * p.fx.mult * p.fade;
@@ -1240,6 +1361,11 @@ const World = (function () {
     groupOf: function (f) { return groups[f]; },
     setLampMode: setLampMode,
     setCalm: setCalm,
+    blackout: blackout,
+    startFire: startFire,
+    enterExterior: enterExterior,
+    get fireOn() { return fire.on; },
+    get exteriorActive() { return ext.active; },
     vitalsPanels: vitalsPanels,
     doors: doors,
     hideSpots: hideSpots,

@@ -40,7 +40,7 @@ const Main = (function () {
   const C = CONFIG;
   let canvas, clock, infoEl, promptEl, menuEl, pauseEl, beginBtn;
   let fpsAcc = 0, fpsFrames = 0, fps = 0;
-  let deadEl, deadT = 0, lastFloor = null;
+  let cpEl, endEl, cpTextT = 0;
 
   const STATES = {
     MENU: { enter: function () { show(menuEl, true); show(pauseEl, false); } },
@@ -61,25 +61,28 @@ const Main = (function () {
       }
     },
     DEAD: {
-      // Basic caught -> respawn flow. Stage 4 replaces this with the full death scene.
+      // The full death scene (cutscenes.js), then back to the last checkpoint.
       enter: function () {
-        deadT = C.DEATH.BASIC_FADE_TIME;
         Player.state.frozen = true;
-        show(deadEl, true);
+        Cutscenes.playDeath(respawn);
       }
     },
-    ENDING: { enter: function () { /* Stage 4 */ } }
+    ENDING: { enter: function () { Player.state.frozen = true; } }
   };
 
   function respawn() {
     const cp = GameState.checkpoint || C.PLAYER.SPAWN;
-    show(deadEl, false);
     Player.teleport(cp.floor, cp.x, cp.z, cp.yaw);
+    Player.state.pitch = 0;
+    Player.state.battery = Math.max(Player.state.battery, C.FLASHLIGHT.BATTERY_MAX * 0.35);   // a little charge back
     Player.state.frozen = !(document.pointerLockElement === canvas);
     Aria.onRespawn();
     Drone.reset();
     GameState.state = 'PLAYING';
     show(pauseEl, Player.state.frozen);
+    GameState.paused = Player.state.frozen;
+    // her first words after you come back
+    Dialogue.say(C.DIALOGUE[GameState.deaths === 2 ? 'deathRetry2' : 'deathRetry1'], 'retry', { force: true, interrupt: true });
   }
 
   // Called by the drone when it reaches the player (or opens their hiding spot).
@@ -90,13 +93,28 @@ const Main = (function () {
     setState('DEAD');
   }
 
-  // A new floor's landing becomes the respawn point.
-  function updateCheckpoint() {
-    const f = GameState.player.floor;
-    if (f === lastFloor || GameState.state !== 'PLAYING') return;
-    lastFloor = f;
-    const sp = C.LAYOUT[String(f)].spawn;
-    GameState.checkpoint = { floor: f, x: sp.x, z: sp.z, yaw: sp.yaw };
+  // Walking near a checkpoint makes it the respawn point.
+  function updateCheckpoint(dt) {
+    if (cpTextT > 0) { cpTextT -= dt; if (cpTextT <= 0) show(cpEl, false); }
+    if (GameState.state !== 'PLAYING') return;
+    const P = GameState.player;
+    for (let i = 0; i < C.CHECKPOINTS.length; i++) {
+      const c = C.CHECKPOINTS[i];
+      if (c.floor !== P.floor || Math.hypot(c.x - P.x, c.z - P.z) > c.r) continue;
+      if (GameState.checkpoint && GameState.checkpoint.id === c.id) return;
+      GameState.checkpoint = { id: c.id, floor: c.floor, x: c.x, z: c.z, yaw: c.yaw };
+      cpEl.textContent = 'CHECKPOINT — ' + c.name.toUpperCase();
+      show(cpEl, true); cpTextT = C.CHECKPOINT_TEXT_TIME;
+      GameState.emit('checkpoint', c);
+      return;
+    }
+  }
+
+  // After the credits: the end card.
+  function endCard(kind) {
+    if (document.exitPointerLock) document.exitPointerLock();
+    document.getElementById('endcard-title').textContent = C.ENDINGS[kind].FINAL_TITLE;
+    show(endEl, true);
   }
 
   function show(el, on) { if (el) el.classList.toggle('hidden', !on); }
@@ -149,23 +167,25 @@ const Main = (function () {
     }
   }
 
-  function loop() {
-    requestAnimationFrame(loop);
-    const dt = Math.min(clock.getDelta(), 0.1);
+  // One simulation step (everything except drawing). Exported so tests can drive the real game logic.
+  function step(dt) {
     if (!GameState.paused) GameState.time += dt;
     const t = GameState.time;
-
     const sdt = GameState.paused ? 0 : dt;
     Player.update(sdt, t);
-    updateCheckpoint();
+    updateCheckpoint(sdt);
     Aria.update(sdt, t);
     Cutscenes.update(sdt, t);
     Dialogue.update(sdt, t);
     Drone.update(sdt, t);
     World.update(sdt, t, GameState.player);
-    if (GameState.state === 'DEAD') { deadT -= dt; if (deadT <= 0) respawn(); }
-
     Hud.update(dt, t);
+  }
+
+  function loop() {
+    requestAnimationFrame(loop);
+    const dt = Math.min(clock.getDelta(), 0.1);
+    step(dt);
     updateInfo(dt);
     GameState.renderer.render(GameState.scene, GameState.camera);
   }
@@ -177,7 +197,9 @@ const Main = (function () {
     menuEl = document.getElementById('menu');
     pauseEl = document.getElementById('pause');
     beginBtn = document.getElementById('begin');
-    deadEl = document.getElementById('dead');
+    cpEl = document.getElementById('checkpoint');
+    endEl = document.getElementById('endcard');
+    document.getElementById('again').addEventListener('click', function () { location.reload(); });
 
     const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, C.RENDER.MAX_PIXEL_RATIO));
@@ -211,5 +233,5 @@ const Main = (function () {
 
   window.addEventListener('DOMContentLoaded', init);
 
-  return { setState: setState, caught: caught, respawn: respawn };
+  return { setState: setState, caught: caught, respawn: respawn, endCard: endCard, step: step };
 })();

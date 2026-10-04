@@ -58,6 +58,8 @@ const Dialogue = (function () {
     return buf;
   }
 
+  // One-shot procedural sounds. `name` is also emitted as a GameState event so
+  // Stage 5's sound engine can take over (then this fallback stays silent).
   function fx(name) {
     if (GameState.emit) GameState.emit(name, {});
     if (typeof Sound !== 'undefined') return;       // the real sound engine handles it
@@ -66,34 +68,111 @@ const Dialogue = (function () {
     const t0 = a.currentTime;
     const out = a.createGain();
     out.connect(a.destination);
-    if (name === 'intercom_static') {
-      const n = a.createBufferSource(); n.buffer = noiseBuffer(a, 0.5);
-      const bp = a.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2200; bp.Q.value = 0.7;
-      out.gain.setValueAtTime(0.0, t0);
-      out.gain.linearRampToValueAtTime(0.1, t0 + 0.04);
-      out.gain.setValueAtTime(0.06, t0 + 0.25);
-      out.gain.linearRampToValueAtTime(0, t0 + 0.45);
-      n.connect(bp); bp.connect(out); n.start(t0); n.stop(t0 + 0.5);
-    } else if (name === 'door_slam') {
-      const o = a.createOscillator(); o.type = 'sine';
-      o.frequency.setValueAtTime(95, t0); o.frequency.exponentialRampToValueAtTime(28, t0 + 0.4);
-      out.gain.setValueAtTime(0.55, t0); out.gain.exponentialRampToValueAtTime(0.001, t0 + 0.55);
-      o.connect(out); o.start(t0); o.stop(t0 + 0.6);
-      const n = a.createBufferSource(); n.buffer = noiseBuffer(a, 0.3);
-      const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 500;
-      const g = a.createGain(); g.gain.setValueAtTime(0.35, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.28);
-      n.connect(lp); lp.connect(g); g.connect(a.destination); n.start(t0);
-    } else if (name === 'scream_distant') {
-      const o = a.createOscillator(); o.type = 'sawtooth';
-      o.frequency.setValueAtTime(520, t0); o.frequency.linearRampToValueAtTime(930, t0 + 0.5); o.frequency.linearRampToValueAtTime(610, t0 + 1.3);
-      const lfo = a.createOscillator(); lfo.frequency.value = 7;
-      const lg = a.createGain(); lg.gain.value = 28; lfo.connect(lg); lg.connect(o.frequency);
-      const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 650; lp.Q.value = 1.5;
-      out.gain.setValueAtTime(0, t0); out.gain.linearRampToValueAtTime(0.07, t0 + 0.12);
-      out.gain.setValueAtTime(0.07, t0 + 0.9); out.gain.exponentialRampToValueAtTime(0.0005, t0 + 1.5);
-      o.connect(lp); lp.connect(out); o.start(t0); lfo.start(t0); o.stop(t0 + 1.6); lfo.stop(t0 + 1.6);
+    const env = (g, pts) => { g.gain.setValueAtTime(0.0001, t0); pts.forEach(p => g.gain.linearRampToValueAtTime(Math.max(0.0001, p[1]), t0 + p[0])); };
+    const noise = (secs) => { const n = a.createBufferSource(); n.buffer = noiseBuffer(a, secs); return n; };
+    const filt = (type, f, q) => { const b = a.createBiquadFilter(); b.type = type; b.frequency.value = f; if (q) b.Q.value = q; return b; };
+    const tone = (type, f, dur) => { const o = a.createOscillator(); o.type = type; o.frequency.value = f; o.start(t0); o.stop(t0 + dur); return o; };
+
+    switch (name) {
+      case 'intercom_static': {
+        const n = noise(0.5), bp = filt('bandpass', 2200, 0.7);
+        env(out, [[0.04, 0.1], [0.25, 0.06], [0.45, 0]]);
+        n.connect(bp); bp.connect(out); n.start(t0); n.stop(t0 + 0.5);
+        break;
+      }
+      case 'door_slam': {
+        const o = a.createOscillator(); o.type = 'sine';
+        o.frequency.setValueAtTime(95, t0); o.frequency.exponentialRampToValueAtTime(28, t0 + 0.4);
+        env(out, [[0.01, 0.55], [0.55, 0.001]]);
+        o.connect(out); o.start(t0); o.stop(t0 + 0.6);
+        const n = noise(0.3), lp = filt('lowpass', 500), g = a.createGain();
+        g.gain.setValueAtTime(0.35, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.28);
+        n.connect(lp); lp.connect(g); g.connect(a.destination); n.start(t0);
+        break;
+      }
+      case 'scream_distant': {
+        const o = a.createOscillator(); o.type = 'sawtooth';
+        o.frequency.setValueAtTime(520, t0); o.frequency.linearRampToValueAtTime(930, t0 + 0.5); o.frequency.linearRampToValueAtTime(610, t0 + 1.3);
+        const lfo = a.createOscillator(); lfo.frequency.value = 7;
+        const lg = a.createGain(); lg.gain.value = 28; lfo.connect(lg); lg.connect(o.frequency);
+        const lp = filt('lowpass', 650, 1.5);
+        env(out, [[0.12, 0.07], [0.9, 0.07], [1.5, 0.0005]]);
+        o.connect(lp); lp.connect(out); o.start(t0); lfo.start(t0); o.stop(t0 + 1.6); lfo.stop(t0 + 1.6);
+        break;
+      }
+      case 'gas_hiss': {                       // long, thin hiss that builds
+        const n = noise(13), hp = filt('highpass', 2600), lp = filt('lowpass', 9000);
+        env(out, [[1.5, 0.09], [8, 0.13], [12.5, 0.09], [13, 0]]);
+        n.connect(hp); hp.connect(lp); lp.connect(out); n.start(t0); n.stop(t0 + 13);
+        break;
+      }
+      case 'breath': {                         // one ragged breath (in, then out)
+        const n = noise(1.2), bp = filt('bandpass', 500 + Math.random() * 500, 1.1);
+        env(out, [[0.3, 0.18 + Math.random() * 0.06], [0.42, 0.05], [0.7, 0.14], [1.1, 0]]);
+        n.connect(bp); bp.connect(out); n.start(t0); n.stop(t0 + 1.2);
+        break;
+      }
+      case 'choke': {
+        const o = tone('sawtooth', 120 + Math.random() * 40, 0.6), lp = filt('lowpass', 520, 2);
+        const lfo = a.createOscillator(); lfo.frequency.value = 19; const lg = a.createGain(); lg.gain.value = 0.07; lfo.connect(lg); lg.connect(out.gain); lfo.start(t0); lfo.stop(t0 + 0.6);
+        env(out, [[0.05, 0.1], [0.4, 0.08], [0.6, 0]]);
+        o.connect(lp); lp.connect(out);
+        const n = noise(0.5), bp = filt('bandpass', 900, 3), g = a.createGain();
+        g.gain.setValueAtTime(0.1, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.45);
+        n.connect(bp); bp.connect(g); g.connect(a.destination); n.start(t0);
+        break;
+      }
+      case 'monitor_beep': {
+        const o = tone('sine', 880, 0.12);
+        env(out, [[0.005, 0.13], [0.11, 0.0001]]);
+        o.connect(out);
+        break;
+      }
+      case 'monitor_flat': {
+        const o = tone('sine', 880, 1.6);
+        env(out, [[0.02, 0.12], [1.5, 0.12], [1.6, 0]]);
+        o.connect(out);
+        break;
+      }
+      case 'gasp': {
+        const n = noise(0.7), bp = a.createBiquadFilter();
+        bp.type = 'bandpass'; bp.Q.value = 1.4;
+        bp.frequency.setValueAtTime(400, t0); bp.frequency.linearRampToValueAtTime(1300, t0 + 0.45);
+        env(out, [[0.4, 0.26], [0.55, 0.0001]]);
+        n.connect(bp); bp.connect(out); n.start(t0); n.stop(t0 + 0.7);
+        break;
+      }
+      case 'alarm': {
+        const o = a.createOscillator(); o.type = 'square';
+        for (let i = 0; i < 10; i++) o.frequency.setValueAtTime(i % 2 ? 560 : 760, t0 + i * 0.4);
+        const lp = filt('lowpass', 1500);
+        env(out, [[0.05, 0.05], [3.8, 0.05], [4, 0]]);
+        o.connect(lp); lp.connect(out); o.start(t0); o.stop(t0 + 4);
+        break;
+      }
+      case 'plug_pull': {
+        const n = noise(0.4), hp = filt('highpass', 1800);
+        env(out, [[0.01, 0.3], [0.35, 0]]);
+        n.connect(hp); hp.connect(out); n.start(t0); n.stop(t0 + 0.4);
+        const o = a.createOscillator(); o.type = 'sine';
+        o.frequency.setValueAtTime(220, t0); o.frequency.exponentialRampToValueAtTime(40, t0 + 0.5);
+        const g = a.createGain(); g.gain.setValueAtTime(0.35, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.6);
+        o.connect(g); g.connect(a.destination); o.start(t0); o.stop(t0 + 0.65);
+        break;
+      }
+      case 'power_down': {
+        const o = a.createOscillator(); o.type = 'sawtooth';
+        o.frequency.setValueAtTime(180, t0); o.frequency.exponentialRampToValueAtTime(22, t0 + 2.2);
+        const lp = filt('lowpass', 400);
+        env(out, [[0.05, 0.25], [2.0, 0.15], [2.3, 0]]);
+        o.connect(lp); lp.connect(out); o.start(t0); o.stop(t0 + 2.4);
+        break;
+      }
     }
   }
+
+  // cut every sound that is still playing (used when the player skips a scene)
+  function stopAudio() { if (audio) { try { audio.close(); } catch (e) { /* ignore */ } audio = null; } }
 
   // ------------------------------------------------------------------ static overlay
   function drawStatic() {
@@ -134,7 +213,8 @@ const Dialogue = (function () {
       text: text,
       speaker: speaker,
       aria: speaker === 'ARIA' && opts.static !== false,
-      dur: opts.dur || Math.max(2.6, text.length * 0.055 + 1.4),
+      cutoff: !!opts.cutoff,       // the line breaks off mid-sentence: static, then gone
+      dur: opts.dur || (opts.cutoff ? text.length / 70 + 0.45 : Math.max(2.6, text.length * 0.055 + 1.4)),
       t: 0, shown: 0
     };
     if (PRIORITY[key] || opts.interrupt) { queue = []; cur = null; }
@@ -172,7 +252,10 @@ const Dialogue = (function () {
         const want = Math.min(cur.text.length, Math.floor(cur.t * 70));
         if (want !== cur.shown) { cur.shown = want; lineEl.textContent = cur.text.slice(0, want); }
         if (cur.t > 0.35) box.classList.remove('crackle');
-        if (cur.t >= cur.dur) { cur = null; if (queue.length) startNext(); else box.classList.remove('show'); }
+        if (cur.t >= cur.dur) {
+          if (cur.cutoff) { staticT = 0.9; fx('intercom_static'); }
+          cur = null; if (queue.length) startNext(); else box.classList.remove('show');
+        }
       }
     }
 
@@ -200,5 +283,5 @@ const Dialogue = (function () {
 
   window.addEventListener('DOMContentLoaded', init);
 
-  return { init: init, update: update, say: say, mute: mute, clear: clear, fx: fx, isMuted: isMuted, speaking: speaking };
+  return { init: init, update: update, say: say, mute: mute, clear: clear, fx: fx, stopAudio: stopAudio, isMuted: isMuted, speaking: speaking };
 })();

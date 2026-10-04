@@ -339,7 +339,7 @@ const Player = (function () {
     const hs = S.hiding ? null : nearestHide();
     const ins = nearestInspect();
     const hunted = (GameState.threat || 0) > 0.25;
-    S.prompt = GameState.noteOpen ? '' : S.hiding ? '[E] Leave hiding spot' : (ins && !(hs && hunted)) ? '[E] Inspect' : hs ? '[E] Hide' : p ? '[E] ' + p.label + (p.down ? ' (down)' : ' (up)') : '';
+    S.prompt = GameState.noteOpen ? '' : S.hiding ? '[E] Leave hiding spot' : (ins && !(hs && hunted)) ? '[E] ' + (C.INSPECT[ins.id].prompt || 'Inspect') : hs ? '[E] Hide' : p ? '[E] ' + p.label + (p.down ? ' (down)' : ' (up)') : '';
     S.room = World.roomAt(S.floor, S.x, S.z);
 
     Object.assign(GameState.player, S);
