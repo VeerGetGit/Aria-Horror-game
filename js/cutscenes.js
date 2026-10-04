@@ -83,7 +83,7 @@ const Cutscenes = (function () {
         fadeEl.style.transition = 'none'; fadeEl.style.opacity = 0;
         show(cs, true);
         this.events = F.LINES.map(l => ({ at: l.at, fn: () => showText(l.text, 'fb', l.hold) }));
-        this.events.push({ at: F.ARIA_AT, fn: () => { textEl.style.color = F.ARIA_COLOR; Dialogue.fx('intercom_static'); showText(C.DIALOGUE.flashback, 'fb aria', F.ARIA_HOLD); } });
+        this.events.push({ at: F.ARIA_AT, fn: () => { textEl.style.color = F.ARIA_COLOR; Dialogue.fx('intercom_static'); Dialogue.speak(C.DIALOGUE.flashback); showText(C.DIALOGUE.flashback, 'fb aria', F.ARIA_HOLD); } });
         this.events.push({ at: F.FADE_OUT_AT, fn: () => { cs.style.transition = 'background 1.3s linear'; cs.style.background = '#000'; } });
       },
       teardown: function () { textEl.style.opacity = 0; textEl.style.color = ''; }

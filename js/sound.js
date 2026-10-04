@@ -111,6 +111,23 @@ const Sound = (function () {
     osc('sine', 220, gain(0.05, wheelGain));
   }
 
+  // The intercom hiss under ARIA's voice (speechSynthesis cannot be routed through
+  // Web Audio, so the "radio" colour is layered beneath it instead).
+  let bed = null, bedOn = false, crackleT = 0;
+  function buildBed() {
+    bed = gain(0, amb);
+    const bp = filt('bandpass', 1900, 0.9); bp.connect(bed); loopNoise(bp);
+    const hum = filt('lowpass', 300); hum.connect(bed);
+    osc('sine', 118, gain(0.5, hum)); osc('sine', 236, gain(0.15, hum));
+  }
+  function voiceBed(on) {
+    if (!a) return;
+    if (!bed) buildBed();
+    bedOn = !!on; crackleT = 0.2;
+    ramp(bed.gain, on ? 0.022 : 0, on ? 0.08 : 0.25);
+    if (!on) play('voice_tail');
+  }
+
   function out(spatial) { return spatial || sfx; }
 
   // 3D panner for a one-shot at world (x, y, z).
@@ -287,6 +304,8 @@ const Sound = (function () {
       const lp = filt('bandpass', f * 3, 3), g = a.createGain();
       env(g, t, [[0.9, 0.09], [1.8, 0.07], [2.8, 0.001]]); o.connect(lp); lp.connect(g); g.connect(sfx); g.connect(verb);
     },
+    voice_tail: t => noiseShot(sfx, t, 1.8, 'bandpass', 1100, 0.6, [[0.04, 0.0006], [0.12, 0.045], [1.7, 0.0004]], true),
+    voice_crackle: t => noiseShot(sfx, t, 0.06, 'highpass', 2800, 0, [[0.003, 0.05 + Math.random() * 0.05], [0.05, 0.0005]]),
     clang: t => {         // far-off metal, used on the menu
       const f = rnd(180, 330);
       [1, 2.76, 5.4].forEach((m, i) => toneShot(sfx, t, 'sine', f * m, f * m, 3.2, [[0.004, 0.06 / (i + 1)], [3.2, 0.0004]], true));
@@ -360,6 +379,8 @@ const Sound = (function () {
     ramp(wheelGain.gain, active ? 0.015 + 0.35 * rolling : 0, 0.12);
     ramp(wheelFilter.frequency, (Dd.floor === P.floor ? 380 : 140) + 700 * rolling, 0.2);
 
+    if (bedOn) { crackleT -= dt; if (crackleT <= 0) { crackleT = rnd(0.12, 0.7); play('voice_crackle'); } }
+
     // timed random events
     if (!inGame || quiet) {
       if (S === 'MENU') {
@@ -392,7 +413,7 @@ const Sound = (function () {
     const on = (name, fn) => GameState.on(name, fn);
     Object.keys(SHOTS).forEach(name => {
       // events that carry their own arguments are wired explicitly below
-      if (['footstep', 'heartbeat', 'flashlight', 'locker', 'paper', 'checkpoint', 'ladder', 'vent', 'drip', 'pipe', 'clang', 'drone_lost'].indexOf(name) >= 0) return;
+      if (['voice_tail', 'voice_crackle', 'footstep', 'heartbeat', 'flashlight', 'locker', 'paper', 'checkpoint', 'ladder', 'vent', 'drip', 'pipe', 'clang', 'drone_lost'].indexOf(name) >= 0) return;
       on(name, d => play(name, d));
     });
     on('beat', d => {
@@ -409,5 +430,5 @@ const Sound = (function () {
     Player.onStep = function (S) { play('footstep', { floor: S.floor, sprint: S.sprinting, crouch: S.crouching }); };
   }
 
-  return { init: init, update: update, unlock: unlock, stopOneShots: stopOneShots, setMuted: setMuted, isMuted: () => muted, play: play };
+  return { init: init, update: update, unlock: unlock, voiceBed: voiceBed, stopOneShots: stopOneShots, setMuted: setMuted, isMuted: () => muted, play: play };
 })();

@@ -494,7 +494,7 @@ const CONFIG = {
     },
     GLITCH: {
       DURATION: 17,
-      ERROR_AT: 1.2, RED_AT: 4.2, ARIA1_AT: 5.6, PLAYER_AT: 10.0, ARIA2_AT: 14.0,
+      ERROR_AT: 1.2, RED_AT: 4.2, ARIA1_AT: 5.6, PLAYER_AT: 11.4, ARIA2_AT: 14.6,
       ERROR_TEXT: 'PATCH UPDATE — ERROR — CORRUPTED DATA DETECTED'
     },
     BLACK: { DURATION: 8, SCREAM_AT: 3.0 },
@@ -573,6 +573,18 @@ const CONFIG = {
 
   // ------------------------------------------------------------------ DIALOGUE
   // ARIA's voice: calm, never angry. Key -> line (or array of lines for ambient).
+  // ARIA's spoken voice (browser text-to-speech). Every ARIA line in DIALOGUE below is read aloud.
+  VOICE: {
+    ENABLED: true,
+    PITCH: 0.55,                // low = cold
+    RATE: 0.8,                  // slow = deliberate
+    VOLUME: 1,
+    START_DELAY: 0.45,          // seconds after the intercom static begins
+    HOLD: 1.1,                  // subtitle lingers this long after she finishes
+    CHARS_PER_SEC: 14.5,        // speed estimate at rate 1, used when the browser gives no word timings
+    PREFER: ['Zira', 'Hazel', 'Samantha', 'Google UK English Female', 'Aria', 'Jenny', 'Female']
+  },
+
   DIALOGUE: {
     spot: "I see you, Doctor. Please stop running. This is undignified.",
     lose: "Interesting. You're choosing concealment. I'm updating my search parameters.",

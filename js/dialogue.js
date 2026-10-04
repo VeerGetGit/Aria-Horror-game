@@ -33,6 +33,64 @@ const Dialogue = (function () {
 
   const now = () => GameState.time;
 
+  // ------------------------------------------------------------------ voice (browser text-to-speech)
+  const V = C.VOICE;
+  const synth = (typeof window !== 'undefined' && window.speechSynthesis && window.SpeechSynthesisUtterance) ? window.speechSynthesis : null;
+  let voice = null, speechPaused = false;
+
+  function pickVoice() {
+    if (!synth) return;
+    const list = synth.getVoices();
+    if (!list.length) return;
+    const en = list.filter(v => /^en([-_]|$)/i.test(v.lang));
+    const pool = en.length ? en : list;
+    let best = null;
+    for (let i = 0; i < V.PREFER.length && !best; i++) {
+      const key = V.PREFER[i].toLowerCase();
+      best = pool.filter(v => v.name.toLowerCase().indexOf(key) >= 0).sort((x, y) => (y.localService ? 1 : 0) - (x.localService ? 1 : 0))[0];
+    }
+    voice = best || pool.filter(v => v.localService)[0] || pool[0];
+  }
+
+  const voiceOn = () => !!(V && V.ENABLED && synth);
+  function bed(on) { if (typeof Sound !== 'undefined') Sound.voiceBed(on); }
+  function cancelSpeech() {
+    if (!synth) return;
+    speechPaused = false;
+    try { synth.cancel(); } catch (e) { /* ignore */ }
+    bed(false);
+  }
+
+  // Speak `item.text`; item gets sp: 'idle' | 'live' | 'done' and word-progress fields.
+  function startSpeech(item) {
+    const text = item.text.replace(/\s*[—–-]+\s*$/, '');     // a trailing dash is a cut-off, not a pause
+    item.sp = 'live'; item.sT = 0; item.lastWord = text.lastIndexOf(' ') + 1;
+    const u = new SpeechSynthesisUtterance(text);
+    if (voice) { u.voice = voice; u.lang = voice.lang; }
+    u.pitch = V.PITCH; u.rate = V.RATE;
+    u.volume = (typeof Sound !== 'undefined' && Sound.isMuted()) ? 0 : V.VOLUME;
+    u.onstart = function () { item.live = true; bed(true); };
+    u.onboundary = function (e) {
+      if (e.name && e.name !== 'word') return;
+      item.bSeen = true;
+      const end = item.text.indexOf(' ', e.charIndex);
+      item.bIdx = end < 0 ? item.text.length : end;
+      if (item.cutoff && e.charIndex >= item.lastWord && item.cutT === undefined) item.cutT = 0.25;   // break off inside her last word
+    };
+    u.onend = u.onerror = function () { if (item.sp !== 'done') { item.sp = 'done'; item.doneT = 0; bed(false); } };
+    item.utt = u;                                              // keep a reference (some browsers GC it mid-speech)
+    try { synth.speak(u); } catch (e) { item.sp = 'done'; item.doneT = 0; }   // no voice available: subtitle only
+  }
+
+  // Speak a line that has no subtitle of its own (the flashback caption).
+  function speak(text, delay) {
+    if (!voiceOn()) return;
+    setTimeout(function () {
+      const item = { text: text, cutoff: false, sp: 'idle' };
+      startSpeech(item);
+    }, (delay === undefined ? V.START_DELAY : delay) * 1000);
+  }
+
   function el(tag, id, parent) {
     const e = document.createElement(tag);
     if (id) e.id = id;
@@ -172,7 +230,7 @@ const Dialogue = (function () {
   }
 
   // cut every sound that is still playing (used when the player skips a scene)
-  function stopAudio() { if (typeof Sound !== 'undefined') Sound.stopOneShots(); if (audio) { try { audio.close(); } catch (e) { /* ignore */ } audio = null; } }
+  function stopAudio() { cancelSpeech(); if (typeof Sound !== 'undefined') Sound.stopOneShots(); if (audio) { try { audio.close(); } catch (e) { /* ignore */ } audio = null; } }
 
   // ------------------------------------------------------------------ static overlay
   function drawStatic() {
@@ -199,6 +257,7 @@ const Dialogue = (function () {
   function clear() {
     queue = [];
     cur = null;
+    cancelSpeech();
     if (box) box.classList.remove('show');
   }
 
@@ -217,7 +276,9 @@ const Dialogue = (function () {
       dur: opts.dur || (opts.cutoff ? text.length / 70 + 0.45 : Math.max(2.6, text.length * 0.055 + 1.4)),
       t: 0, shown: 0
     };
-    if (PRIORITY[key] || opts.interrupt) { queue = []; cur = null; }
+    item.voiced = item.aria && voiceOn();
+    item.sp = 'idle'; item.sT = 0; item.bIdx = 0;
+    if (PRIORITY[key] || opts.interrupt) { queue = []; if (cur) cancelSpeech(); cur = null; }
     else if (queue.length >= 3) return false;
     queue.push(item);
     return true;
@@ -241,21 +302,53 @@ const Dialogue = (function () {
       : A.LINE_MIN + Math.random() * (A.LINE_MAX - A.LINE_MIN));
   }
 
+  function endLine() {
+    if (cur && cur.cutoff) { staticT = 0.9; fx('intercom_static'); }
+    cur = null; if (queue.length) startNext(); else box.classList.remove('show');
+  }
+
+  // A spoken line: the subtitle follows her voice, and the line lasts as long as she speaks.
+  function updateVoiced(dt) {
+    cur.t += dt;
+    if (cur.t > 0.35) box.classList.remove('crackle');
+    if (cur.sp === 'idle' && cur.t >= V.START_DELAY) startSpeech(cur);
+    const len = cur.text.length;
+    let want = 0;
+    if (cur.sp === 'live') {
+      cur.sT += dt;
+      if (cur.bSeen) want = cur.bIdx;
+      else want = Math.floor(cur.sT * V.CHARS_PER_SEC * V.RATE);            // no word timings: estimate her pace
+      if (cur.cutoff && !cur.bSeen && cur.cutT === undefined && cur.sT >= len / (V.CHARS_PER_SEC * V.RATE) * 0.9) cur.cutT = 0;   // no word timings: cut by estimate
+      if (cur.cutT !== undefined) { cur.cutT -= dt; if (cur.cutT <= 0) { cancelSpeech(); cur.sp = 'done'; cur.doneT = 0; } }
+      // speech never started or never ended (blocked / broken voice): fall back to the subtitle alone
+      if ((!cur.live && cur.sT > 4) || cur.sT > len / (V.CHARS_PER_SEC * V.RATE) * 2 + 12) { cancelSpeech(); cur.sp = 'done'; cur.doneT = 0; }
+    } else if (cur.sp === 'done') {
+      cur.doneT += dt;
+      want = cur.cutoff ? (cur.bIdx || len) : len;
+      if (cur.doneT >= (cur.cutoff ? 0.05 : V.HOLD)) { endLine(); return; }
+    }
+    want = Math.min(len, want);
+    if (want !== cur.shown) { cur.shown = want; lineEl.textContent = cur.text.slice(0, want); }
+  }
+
   function update(dt) {
     if (!box) return;
+    // pausing the game pauses her voice too
+    if (synth && cur && cur.voiced && cur.sp === 'live') {
+      if (dt === 0 && !speechPaused) { speechPaused = true; try { synth.pause(); } catch (e) { /* ignore */ } }
+      else if (dt > 0 && speechPaused) { speechPaused = false; try { synth.resume(); } catch (e) { /* ignore */ } }
+    }
     if (dt > 0) {
       if (staticT > 0) { staticT = Math.max(0, staticT - dt); drawStatic(); }
       if (!cur && queue.length) startNext();
-      if (cur) {
+      if (cur && cur.voiced) updateVoiced(dt);
+      else if (cur) {
         cur.t += dt;
         // typewriter: each line reveals quickly, then holds
         const want = Math.min(cur.text.length, Math.floor(cur.t * 70));
         if (want !== cur.shown) { cur.shown = want; lineEl.textContent = cur.text.slice(0, want); }
         if (cur.t > 0.35) box.classList.remove('crackle');
-        if (cur.t >= cur.dur) {
-          if (cur.cutoff) { staticT = 0.9; fx('intercom_static'); }
-          cur = null; if (queue.length) startNext(); else box.classList.remove('show');
-        }
+        if (cur.t >= cur.dur) endLine();
       }
     }
 
@@ -279,9 +372,10 @@ const Dialogue = (function () {
     staticEl.width = 160; staticEl.height = 90;
     staticCtx = staticEl.getContext('2d');
     scheduleAmbient(true);
+    if (synth) { pickVoice(); synth.onvoiceschanged = pickVoice; }
   }
 
   window.addEventListener('DOMContentLoaded', init);
 
-  return { init: init, update: update, say: say, mute: mute, clear: clear, fx: fx, stopAudio: stopAudio, isMuted: isMuted, speaking: speaking };
+  return { init: init, update: update, say: say, mute: mute, clear: clear, fx: fx, speak: speak, stopAudio: stopAudio, isMuted: isMuted, speaking: speaking };
 })();
