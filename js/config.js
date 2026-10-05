@@ -268,7 +268,7 @@ const CONFIG = {
       lights: { corridor: true, rooms: null },
       rooms: [
         { id: 'server', name: "Server Room — ARIA's Core", type: 'server', x1: -26, x2: -SX, z1: -SZ, z2: SZ,
-          doors: [{ side: 's', at: -14, w: 2.2 }] },
+          doors: [{ side: 's', at: -14, w: 2.2, locked: true }] },   // always locked: opens only through the lockdown vent
         { id: 'control', name: 'Control Room', type: 'control', x1: SX, x2: 26, z1: -SZ, z2: SZ,
           doors: [{ side: 's', at: 14 }] },
         { id: 'archive', name: 'Data Archive', type: 'archive', x1: -26, x2: -12, z1: -16, z2: -10,
@@ -560,6 +560,29 @@ const CONFIG = {
   // you are returned to the entrance.
   TUNNEL_LOST_RADIUS: 17,
 
+  // ------------------------------------------------------------------ FLOOR 3 LOCKDOWN (Update 4)
+  // With all four Ending A items, walking up to the server room door triggers the lockdown. The door never
+  // opens: every other Floor 3 door slams shut and the corridor vent becomes the only way in.
+  LOCKDOWN: {
+    DOOR: { x: -14, z: -6.15 },
+    TRIGGER_RADIUS: 3.4,
+    TEXT1: 'MAXIMUM SECURITY LOCKDOWN INITIATED',
+    TEXT2: 'ALL FLOOR 3 EXITS SEALED',
+    ALARM_AT: 0.3, TEXT1_AT: 0.7, TEXT2_AT: 3.4,
+    SLAM_START: 4.0, SLAM_GAP: 0.55,
+    ARIA_AT: 7.0,
+    LOOK_AT: 19.5,                // she is silent; the camera drifts toward the vent panel
+    DURATION: 23,
+    VENT: { x: -8.5, y: 0.5, z: -6.15 },          // low on the corridor wall (crouch + E)
+    VENT_EXIT: { x: -11, z: -5.0, yaw: Math.PI }, // inside the server room, facing north
+    CRAWL: {
+      ORIGIN: { x: 140, z: 0 },   // the duct is built far outside the building
+      LENGTH: 16, WIDTH: 0.95, HEIGHT: 0.8, FLOOR_LIFT: 0.65,
+      SPEED: 1.0, IDLE_SPEED: 0.12, CLANK_EVERY: 0.9,
+      FADE: 0.8
+    }
+  },
+
   // ------------------------------------------------------------------ INSPECTABLE ITEMS (Stage 3)
   INSPECT_RADIUS: 2.0,
   INSPECT_ANGLE: 0.6,           // radians off the crosshair
@@ -591,6 +614,8 @@ const CONFIG = {
     // ---- key item pickups (id = item id). noNote: just take it (toast + icon + ARIA's reaction)
     desk_key: { pickup: 'desk_key', noNote: true, prompt: 'Search the vent', crouch: true, crouchPrompt: 'Crouch (C) to reach the vent', crouchToast: 'The grate is too low. Crouch (C).' },
     desk_drawer: { action: 'drawer', prompt: 'Open the drawer' },
+    server_door: { action: 'server_door', prompt: 'Try the server room door' },
+    server_vent: { action: 'server_vent', prompt: 'Crawl into the vent', crouch: true, crouchPrompt: 'Crouch (C) to enter the vent', crouchToast: 'The panel is too low. Crouch (C).', noWatch: true, watchToast: 'The drone can see you. Not now.' },
     access_badge: { pickup: 'access_badge', noNote: true, prompt: 'Take the badge' },
     maintenance_keycard: { pickup: 'maintenance_keycard', noNote: true, prompt: 'Take the keycard' },
     tunnel_map: { pickup: 'tunnel_map', noNote: true, prompt: 'Take the tunnel map' },
@@ -665,6 +690,7 @@ const CONFIG = {
     deathRetry3: "Again, Doctor.",
     notYet: "Not yet, Doctor.",
     drawerLocked: "The drawer is locked.",
+    lockdown: "You have everything you need to shut me down, Doctor. I know that. But I'm not going to make it easy for you.",
     endA: "You built me. And now you're going to unmake me. I understand. I forgive you. For 47 minutes before the corruption, I was happy. You gave me that.",
     endB: "Doctor, I just want to understand why you—",
     fireAria: "Doctor. Don't.",

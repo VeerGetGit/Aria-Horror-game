@@ -113,7 +113,7 @@ const Sound = (function () {
 
   // The intercom hiss under ARIA's voice (speechSynthesis cannot be routed through
   // Web Audio, so the "radio" colour is layered beneath it instead).
-  let bed = null, bedOn = false, crackleT = 0;
+  let bed = null, bedOn = false, crackleT = 0, crawlK = 0;
   function buildBed() {
     bed = gain(0, amb);
     const bp = filt('bandpass', 1900, 0.9); bp.connect(bed); loopNoise(bp);
@@ -304,6 +304,14 @@ const Sound = (function () {
       const lp = filt('bandpass', f * 3, 3), g = a.createGain();
       env(g, t, [[0.9, 0.09], [1.8, 0.07], [2.8, 0.001]]); o.connect(lp); lp.connect(g); g.connect(sfx); g.connect(verb);
     },
+    vent_clank: t => {
+      toneShot(sfx, t, 'triangle', rnd(150, 230), 70, 0.22, [[0.004, 0.2], [0.22, 0.001]], true);
+      noiseShot(sfx, t, 0.14, 'bandpass', 1500, 3, [[0.003, 0.12], [0.14, 0.001]], true);
+    },
+    vent_open: t => {
+      toneShot(sfx, t, 'square', 110, 45, 0.5, [[0.01, 0.4], [0.5, 0.001]], true);
+      noiseShot(sfx, t, 0.5, 'lowpass', 800, 0, [[0.01, 0.4], [0.5, 0.001]], true);
+    },
     access_denied: t => {
       toneShot(sfx, t, 'square', 150, 110, 0.18, [[0.005, 0.12], [0.18, 0.001]]);
       toneShot(sfx, t + 0.2, 'square', 150, 110, 0.18, [[0.005, 0.12], [0.18, 0.001]]);
@@ -382,7 +390,7 @@ const Sound = (function () {
     // server hum grows toward ARIA's core
     const dx = P.x - SERVER.x, dz = P.z - SERVER.z, dy = (P.y || 0) - SERVER.y;
     const near = clamp01(1 - Math.hypot(dx, dz, dy) / 42);
-    ramp(humGain.gain, level * (0.035 + 0.3 * near * near), 0.4);
+    ramp(humGain.gain, Math.max(level * (0.035 + 0.3 * near * near), crawlK * 0.85), 0.3);   // crawling: the hum becomes deafening
     ramp(buzzGain.gain, level * 0.012, 0.5);
 
     // flashlight buzz on a low battery in the tunnels
@@ -453,5 +461,5 @@ const Sound = (function () {
     Player.onStep = function (S) { play('footstep', { floor: S.floor, sprint: S.sprinting, crouch: S.crouching }); };
   }
 
-  return { init: init, update: update, unlock: unlock, voiceBed: voiceBed, stopOneShots: stopOneShots, setMuted: setMuted, isMuted: () => muted, play: play };
+  return { init: init, update: update, unlock: unlock, voiceBed: voiceBed, setCrawl: function (k) { crawlK = k; }, stopOneShots: stopOneShots, setMuted: setMuted, isMuted: () => muted, play: play };
 })();

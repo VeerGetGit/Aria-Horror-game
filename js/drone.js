@@ -261,6 +261,20 @@ const Drone = (function () {
     goTo(x, z);
   }
 
+  // Is the drone on the player's floor, awake, close and with a clear line of sight to them?
+  function watching() {
+    const P = GameState.player;
+    if (d.state === 'OFF' || d.state === 'HOLD' || d.state === 'STAIRS' || P.floor !== d.floor) return false;
+    return Math.hypot(P.x - d.x, P.z - d.z) < 16 && hasLOS(d.floor, d.x, d.z, P.x, P.z);
+  }
+
+  // A camera spotted the player: bring the drone to that floor (if it is elsewhere) and send it to the spot.
+  function call(floor, x, z) {
+    if (d.state === 'CHASE' || d.state === 'CATCH' || d.state === 'STAIRS') return;
+    if (d.state === 'OFF' || d.floor !== floor) placeFar(floor);
+    investigate(x, z, floor);
+  }
+
   function place(floor, x, z, yaw) {
     d.floor = floor; d.x = x; d.z = z;
     if (yaw !== undefined) d.yaw = yaw;
@@ -522,6 +536,7 @@ const Drone = (function () {
     investigate: investigate,
     hasLOS: hasLOS,
     findPath: findPath,
+    watching: watching, call: call,
     data: d,
     get state() { return d.state; }
   };

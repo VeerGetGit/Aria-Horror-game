@@ -630,7 +630,7 @@ const Cutscenes = (function () {
   }
 
   // ------------------------------------------------------------------ E-key actions (terminal, plug, fire override, exit)
-  const E = { armed: false, fire: false };
+  const E = { armed: false, fire: false, lockdown: false };
 
   function playerSays(key) {
     Dialogue.say(C.DIALOGUE[key], 'act', { speaker: 'DR. ARYAN', static: false, interrupt: true, dur: 4.6 });
@@ -665,6 +665,13 @@ const Cutscenes = (function () {
       World.setDrawerOpen(true);
       if (typeof Sound !== 'undefined') Sound.play('paper');
       GameState.giveItem('override_sequence');
+    } else if (action === 'server_door') {
+      if (E.lockdown) { Items.toast('SERVER ROOM SEALED', 2.5); GameState.emit('access_denied', {}); return; }
+      const lack = Items.missing(C.END_A_ITEMS);
+      if (lack.length) { GameState.emit('access_denied', {}); Items.toast('ACCESS DENIED — MISSING: ' + lack.map(i => C.ITEMS[i].name).join(', '), 4); return; }
+      startLockdown();
+    } else if (action === 'server_vent') {
+      startCrawl();
     } else if (action === 'fire') {
       if (E.fire || codeEl.classList.contains('on')) return;
       // Ending B needs all three items. The panel asks for the Fuel Ignition Code.
@@ -679,6 +686,129 @@ const Cutscenes = (function () {
     } else if (action === 'footage') {
       playFootage();
     }
+  }
+
+  // ------------------------------------------------------------------ Floor 3 lockdown + the vent crawl (Update 4)
+  const LK = C.LOCKDOWN;
+
+  function startLockdown() {
+    if (E.lockdown || running || GameState.state !== 'PLAYING') return;
+    E.lockdown = true;
+    GameState.state = 'CUTSCENE';
+    play([sceneLockdown], function () { GameState.state = 'PLAYING'; });
+  }
+
+  // The door does NOT open. Red flicker, two lines of text, every Floor 3 door slams shut, ARIA, silence,
+  // and the camera drifts toward the vent panel on the corridor wall.
+  function sceneLockdown() {
+    const doorsF3 = World.doors.filter(d => d.floor === 3 && !d.locked);
+    return {
+      duration: LK.DURATION, playable: false,
+      setup: function () {
+        control(false);
+        Dialogue.clear();
+        Player.state.flashlightOn = false;
+        cs.style.transition = 'none'; cs.style.background = 'transparent'; show(cs, true);
+        textEl.style.opacity = 0;
+        this.events = [
+          { at: LK.ALARM_AT, fn: () => Dialogue.fx('alarm') },
+          { at: LK.TEXT1_AT, fn: () => showText(LK.TEXT1, 'err', 2.4) },
+          { at: LK.TEXT2_AT, fn: () => showText(LK.TEXT2, 'err', 2.6) },
+          { at: LK.ARIA_AT, fn: () => say('lockdown') }
+        ];
+        doorsF3.forEach((d, i) => {
+          this.events.push({ at: LK.SLAM_START + i * LK.SLAM_GAP, fn: () => {
+            d.setLocked(true); Drone.invalidateNav();
+            Dialogue.fx('door_slam');
+            GameState.shake = Math.max(GameState.shake || 0, 0.55);
+          } });
+        });
+      },
+      update: function (dt, tt) {
+        // the screen flickers red for the first seconds, then settles to a faint wash
+        const a = tt < LK.TEXT2_AT + 1 ? (Math.sin(tt * 38) > 0.15 ? 0.42 : 0.04) : Math.max(0.05, 0.12 - (tt - LK.TEXT2_AT) * 0.004);
+        cs.style.background = 'rgba(190,0,0,' + a.toFixed(3) + ')';
+        if (tt >= LK.LOOK_AT) lookAt(LK.VENT.x, LK.VENT.y, LK.VENT.z, 1.3, dt);
+      },
+      teardown: function () {
+        cs.style.background = 'transparent'; show(cs, false);
+        textEl.className = ''; textEl.style.opacity = 0;
+        World.setLockdown(true);                     // the vent is now the ONLY way in
+        GameState.cutsceneControl = false;
+      }
+    };
+  }
+
+  function startCrawl() {
+    if (running || GameState.state !== 'PLAYING') return;
+    GameState.state = 'CUTSCENE';
+    play([sceneCrawl], function () { GameState.state = 'PLAYING'; });
+  }
+
+  // Crawl through the tight, dark duct: hold W to move, flashlight only, the server hum swells.
+  function sceneCrawl() {
+    const K = LK.CRAWL, O = K.ORIGIN, H = C.BUILDING.FLOOR_H;
+    let p = 0, nextClank = K.CLANK_EVERY, phase = 'in', outAt = 0;
+    return {
+      duration: 9999, playable: false,
+      setup: function () {
+        control(false);
+        Dialogue.clear();
+        Drone.hide();                                // the server room is a sanctuary once you are inside
+        blackCover(0.35);
+        this.events = [
+          { at: 0.45, fn: () => {
+            World.enterVent();
+            const S = Player.state;
+            S.x = O.x; S.z = O.z; S.y = 3 * H; S.floor = 3;
+            S.yaw = 0; S.pitch = -0.04; S.crouching = true; S.flashlightOn = true; S.battery = 100; S.hiding = null;
+            cs.style.transition = 'background ' + K.FADE + 's linear'; cs.style.background = 'transparent';
+            setTimeout(() => show(cs, false), K.FADE * 1000);
+          } }
+        ];
+      },
+      update: function (dt, tt) {
+        const S = Player.state;
+        if (tt < 0.5) return;
+        S.crouching = true; S.flashlightOn = true;
+        if (phase === 'in') {
+          const held = Player.forwardHeld();
+          p = Math.min(K.LENGTH, p + (held ? K.SPEED : K.IDLE_SPEED) * dt);   // slow drift if you hesitate: never a soft-lock
+          S.x = O.x + Math.sin(tt * 1.7) * 0.03; S.z = O.z - p;
+          S.yaw = Math.sin(tt * 0.9) * 0.04; S.pitch = -0.04 + Math.sin(tt * 2.1) * 0.01;
+          S.bobAmp = held ? 0.03 : 0.008; S.bobPhase += dt * (held ? 5.5 : 1.5);
+          GameState.shake = Math.max(GameState.shake || 0, held ? 0.08 : 0.03);
+          if (p >= nextClank) { nextClank += K.CLANK_EVERY; GameState.emit('vent_clank', {}); }
+          if (typeof Sound !== 'undefined') Sound.setCrawl(0.25 + 0.75 * (p / K.LENGTH));
+          if (p >= K.LENGTH) { phase = 'out'; outAt = tt; GameState.emit('vent_open', {}); blackCover(0.4); GameState.shake = 0.6; }
+        } else if (phase === 'out' && tt - outAt > 0.7) {
+          phase = 'done';
+          World.exitVent();
+          const X = LK.VENT_EXIT;
+          Player.teleport(3, X.x, X.z, X.yaw);
+          Player.state.pitch = 0; Player.state.crouching = false; Player.state.flashlightOn = false;
+          if (typeof Sound !== 'undefined') Sound.setCrawl(0);
+          cs.style.transition = 'background 1.2s linear'; cs.style.background = 'transparent';
+          setTimeout(() => show(cs, false), 1300);
+          t = this.duration;                           // end the scene
+        }
+      },
+      teardown: function () {
+        if (typeof Sound !== 'undefined') Sound.setCrawl(0);
+        World.exitVent();
+        GameState.cutsceneControl = false;
+      }
+    };
+  }
+
+  // walking up to the server door with all four items starts the lockdown
+  function lockdownCheck() {
+    if (E.lockdown || running || GameState.state !== 'PLAYING') return;
+    const P = GameState.player;
+    if (P.floor !== 3 || P.hiding) return;
+    if (Math.hypot(P.x - LK.DOOR.x, P.z - LK.DOOR.z) > LK.TRIGGER_RADIUS) return;
+    if (Items.missing(C.END_A_ITEMS).length) return;
+    startLockdown();
   }
 
   // ------------------------------------------------------------------ Ending B: the fuel code and the fire
@@ -748,7 +878,7 @@ const Cutscenes = (function () {
 
   // A new run: the story flags that belong to a single run start over.
   function resetRun() {
-    E.armed = false; E.fire = false;
+    E.armed = false; E.fire = false; E.lockdown = false;
     footageSeen = false; vmUntil = 0;
     GameState.noteOpen = false;
     Object.keys(inspected).forEach(k => { delete inspected[k]; });
@@ -1079,6 +1209,7 @@ const Cutscenes = (function () {
   function moments(dt) {
     if (dt <= 0) return;
     const P = GameState.player;
+    lockdownCheck();
     if (!M.started) {
       M.started = true;
       M.nextSlam = GameState.time + AM.DOOR_SLAM_MIN + Math.random() * (AM.DOOR_SLAM_MAX - AM.DOOR_SLAM_MIN);

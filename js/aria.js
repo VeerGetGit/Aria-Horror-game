@@ -172,7 +172,7 @@ const Aria = (function () {
       if (!Drone.hasLOS(P.floor, cm.cfg.x, cm.cfg.z, P.x, P.z)) return;
       cm.cool = A.CAMERA_ALERT_COOLDOWN; cm.alert = 1.2; camAlertT = 3;
       say('camera');
-      Drone.investigate(P.x, P.z, P.floor);
+      if (P.floor === 3) Drone.call(P.floor, P.x, P.z); else Drone.investigate(P.x, P.z, P.floor);   // Floor 3: the drone is called in
       emit('camera_alert', { cam: cm.cfg });
     });
   }

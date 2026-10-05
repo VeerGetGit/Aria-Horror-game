@@ -61,8 +61,9 @@ const Player = (function () {
 
   function onKeyDown(e) {
     if (e.code === 'Escape') releaseLock();          // Esc ALWAYS frees the cursor, whatever the game state
-    if (!GameState || !canControl()) return;
-    keys[e.code] = true;
+    if (!GameState) return;
+    keys[e.code] = true;                 // held keys are tracked even in cutscenes (the vent crawl reads W)
+    if (!canControl()) return;
     if (document.pointerLockElement === lockEl) e.preventDefault();
     if (e.repeat) return;
     if (P.KEYS.FLASHLIGHT.indexOf(e.code) >= 0) toggleFlashlight();
@@ -251,6 +252,7 @@ const Player = (function () {
     const it = nearestInspect();
     if (it) {
       const def = C.INSPECT[it.id];
+      if (def.noWatch && typeof Drone !== 'undefined' && Drone.watching()) { if (GameState.emit) GameState.emit('access_denied', {}); if (typeof Items !== 'undefined') Items.toast(def.watchToast, 2.5); return; }
       if (def.crouch && !S.crouching) { if (GameState.emit) GameState.emit('access_denied', {}); if (typeof Items !== 'undefined') Items.toast(def.crouchToast, 2); return; }
       if (GameState.emit) GameState.emit('inspect', it.id);
       return;
@@ -380,6 +382,7 @@ const Player = (function () {
     update: update,
     teleport: teleport,
     releaseKeys: clearKeys,
+    forwardHeld: function () { return anyDown(P.KEYS.FORWARD); },
     state: S,
     set onStep(fn) { onStep = fn; }
   };

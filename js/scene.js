@@ -403,7 +403,7 @@ const World = (function () {
     const door = {
       id: owner + '_' + side + '_' + Math.round(at),
       floor: f, owner: owner, axis: axis, x: axis === 'x' ? at : c, z: axis === 'x' ? c : at, w: w,
-      locked: !!o.locked, exit: !!o.exit, mesh: mesh, collider: col,
+      locked: !!o.locked, initialLocked: !!o.locked, exit: !!o.exit, mesh: mesh, collider: col,
       setLocked: function (v) { this.locked = v; this.mesh.visible = v; this.collider.active = v; }
     };
     doors.push(door);
@@ -880,6 +880,9 @@ const World = (function () {
       [-20, -14.5, -9].forEach(x => vitalsPanel(f, x, 1.75, 5.98, 2.4, 1.3, 's'));
       [-18, -12].forEach(x => addFixture({ floor: f, x: x, y: ceilY(f), z: 0, color: 0x2f6bff, intensity: 0.9, distance: 10, mode: 'steady', size: [0.5, 0.5] }));
       addFixture({ floor: f, x: -24, y: ceilY(f), z: 0, color: 0x2f6bff, intensity: 1.1, distance: 9, mode: 'steady', size: [0.5, 0.5] });
+      // where the vent lets you out (inside the south wall, central aisle)
+      const VX = C.LOCKDOWN.VENT_EXIT;
+      textPlane(f, VX.x, 0.5, -6.1, 0.9, 0.6, ['≡≡≡≡≡', '≡≡≡≡≡', '≡≡≡≡≡'], 'n', { bg: '#1c2433', color: '#4a5a78', size: 40, px: 256, border: '#2a3550' });
     },
 
     control: function (f, r) {
@@ -1001,6 +1004,63 @@ const World = (function () {
       crate(f, 24.2, 4.5, 1.0); crate(f, 24.5, 3.3, 0.8); crate(f, 15.2, 4.5, 1.1);
     }
   };
+
+  // Floor 3 corridor extras: the vent panel (sealed until the lockdown) and the server door prompt.
+  function buildLockdownProps(f) {
+    const K = C.LOCKDOWN;
+    calmObjs.vent = textPlane(f, K.VENT.x, K.VENT.y, K.VENT.z - 0.04, 0.9, 0.6, ['≡≡≡≡≡', '≡≡≡≡≡', '≡≡≡≡≡'], 's', { bg: '#241818', color: '#6a4a4a', size: 40, px: 256, border: '#4a2a2a' });
+    interactables.push({ id: 'server_vent', floor: f, x: K.VENT.x, y: K.VENT.y, z: K.VENT.z - 0.04, disabled: true });
+    interactables.push({ id: 'server_door', floor: f, x: K.DOOR.x, y: 1.2, z: K.DOOR.z });
+  }
+
+  // Lockdown: every Floor 3 door is sealed (the server door already was); the vent opens up.
+  function setLockdown(on) {
+    interactables.forEach(it => { if (it.id === 'server_vent') it.disabled = !on; });
+  }
+
+  // ------------------------------------------------------------------ the crawl duct (built far outside the building)
+  let ventGroup = null, ventActive = false;
+  function buildVent() {
+    const K = C.LOCKDOWN.CRAWL, w = K.WIDTH, h = K.HEIGHT, L = K.LENGTH + 2;
+    const g = new THREE.Group();
+    g.position.set(K.ORIGIN.x, 3 * H + K.FLOOR_LIFT, K.ORIGIN.z);
+    const metal = lambert(0x50545c), dark = lambert(0x2a2c32);
+    const box = (bw, bh, bd, x, y, z, m) => { const b = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), m); b.position.set(x, y, z); g.add(b); return b; };
+    box(w, 0.04, L, 0, -0.02, -L / 2 + 1, metal);                 // floor
+    box(w, 0.04, L, 0, h + 0.02, -L / 2 + 1, metal);              // ceiling
+    box(0.04, h, L, -w / 2 - 0.02, h / 2, -L / 2 + 1, metal);     // walls
+    box(0.04, h, L, w / 2 + 0.02, h / 2, -L / 2 + 1, metal);
+    for (let z = 0.6; z > -K.LENGTH - 1; z -= 1.6) {              // ribs
+      box(w + 0.1, 0.05, 0.08, 0, 0.02, z, dark); box(w + 0.1, 0.05, 0.08, 0, h - 0.02, z, dark);
+      box(0.05, h, 0.08, -w / 2, h / 2, z, dark); box(0.05, h, 0.08, w / 2, h / 2, z, dark);
+    }
+    for (let z = -1.8; z > -K.LENGTH; z -= 3.7) {                 // slits of blue light from the racks beyond
+      const m = new THREE.MeshBasicMaterial({ color: 0x1a3f9a });
+      const s = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.06), m);
+      s.position.set(w / 2 - 0.001, 0.28, z); s.rotation.y = -Math.PI / 2; g.add(s);
+    }
+    const end = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: 0x2a62d8 }));
+    end.position.set(0, h / 2, -K.LENGTH - 0.2); g.add(end);       // the exit grate, glowing
+    g.visible = false;
+    scene.add(g);
+    ventGroup = g;
+  }
+
+  function enterVent() {
+    if (!ventGroup) buildVent();
+    ventActive = true;
+    Object.keys(groups).forEach(k => { groups[k].visible = false; });
+    ventGroup.visible = true;
+    ambient.color.setHex(0x0a1222); ambient.intensity = 0.1;
+    scene.fog.color.setHex(0x000000); scene.fog.density = 0.12; scene.background.setHex(0x000000);
+  }
+
+  function exitVent() {
+    ventActive = false;
+    if (ventGroup) ventGroup.visible = false;
+    curFloor = null;
+    setActiveFloor(3);
+  }
 
   // ------------------------------------------------------------------ floor assembly
   function buildFloor(f) {
@@ -1192,7 +1252,7 @@ const World = (function () {
   }
 
   function setActiveFloor(f) {
-    if (ext.active || f === curFloor) return;
+    if (ext.active || ventActive || f === curFloor) return;
     curFloor = f;
     Object.keys(groups).forEach(k => { groups[k].visible = Math.abs(+k - f) <= C.RENDER.ACTIVE_FLOOR_RANGE; });
     const a = L.AMBIENT[String(f)];
@@ -1247,12 +1307,17 @@ const World = (function () {
     interactables.forEach(it => { if (it.id === 'desk_drawer') it.disabled = !!on; });
   }
 
+  function exitVentIfActive() { if (ventActive) exitVent(); }
+
   // Death restarts the run: every carried item is back where it was, the drawer is locked, the fire is out.
   function resetRun() {
     stopFire();
     Object.keys(calmObjs.items).forEach(id => { calmObjs.items[id].visible = true; });
     interactables.forEach(it => { it.disabled = false; });
     setDrawerOpen(false);
+    doors.forEach(d => { if (d.floor === 3) d.setLocked(d.initialLocked); });     // the lockdown is undone
+    setLockdown(false);
+    exitVentIfActive();
     const ex = doors.find(d => d.exit);
     if (ex) ex.setLocked(true);
   }
@@ -1378,6 +1443,7 @@ const World = (function () {
     }
     buildStairs();
     for (let f = 0; f <= B.FLOOR_MAX; f++) buildFloor(f);
+    buildLockdownProps(3);
     buildBasement();
     buildPassages();
     buildExterior();
@@ -1421,6 +1487,9 @@ const World = (function () {
     setCalm: setCalm,
     blackout: blackout,
     stopFire: stopFire,
+    setLockdown: setLockdown,
+    enterVent: enterVent,
+    exitVent: exitVent,
     setDrawerOpen: setDrawerOpen,
     resetRun: resetRun,
     // carryable items: hide / show the mesh and its prompt
