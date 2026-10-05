@@ -724,6 +724,11 @@ const World = (function () {
       const pf = textPlane(f, -21.9, 0.98, -3.75, 0.3, 0.22, ['☺ ☺ ☺ ☺', ' ☺ ☺ ☺ '], 'n', { bg: '#3a3028', color: '#e8d8b8', size: 30, border: '#8a7a5a', px: 256 });
       pf.rotation.x = -0.12;
       calmObjs.items.photo = pf;
+      // the locked drawer in your desk (needs the desk key from Paris's vent)
+      calmObjs.drawerShut = textPlane(f, -22.2, 0.6, -2.97, 0.55, 0.2, ['⚷  LOCKED'], 'n', { bg: '#3a2a1c', color: '#a08a60', size: 26, px: 256, border: '#6a5438' });
+      calmObjs.drawerOpen = pbox(f, -22.2, -2.78, 0.5, 0.12, 0.38, lambert(0x4a3622), { y: 0.5, collide: false });
+      calmObjs.drawerOpen.visible = false;
+      interactables.push({ id: 'desk_drawer', floor: f, x: -22.2, y: 0.6, z: -2.97 });
       pbox(f, -22.3, -3.3, 0.32, 0.03, 0.24, mats.fabricRed, { y: 0.78, collide: false });
       textPlane(f, -22.3, 0.815, -3.3, 0.28, 0.2, ['PROJECT ARIA', 'CLASSIFIED'], 'up', { bg: '#7a1a14', color: '#f0e0d0', size: 22, px: 256 });
       shelf(f, -18.55, 0, 0.5, 3.0, 2.2, 5, mats.woodLight);
@@ -758,6 +763,12 @@ const World = (function () {
       handprint(f, -10.15, 0.9, 2.1, 'w', 0.22);
       dragMark(f, -11.2, 2.6, -14, 5.7, 0.35);
       interactables.push({ id: 'paris_note', floor: f, x: -13.5, y: 0.8, z: -3.55 });
+      // Maintenance keycard on the desk
+      calmObjs.items.maintenance_keycard = pbox(f, -12.9, -3.95, 0.14, 0.012, 0.09, lambert(0x2a6ad0), { y: 0.78, collide: false, rotY: 0.4 });
+      interactables.push({ id: 'maintenance_keycard', floor: f, x: -12.9, y: 0.8, z: -3.95 });
+      // Ventilation grate low on the east wall: the desk key is inside (crouch + E)
+      textPlane(f, -10.15, 0.45, -1.2, 0.6, 0.4, ['≡≡≡≡≡', '≡≡≡≡≡', '≡≡≡≡≡'], 'w', { bg: '#26262a', color: '#6a6a70', size: 40, px: 256, border: '#3a3a40' });
+      interactables.push({ id: 'desk_key', floor: f, x: -10.15, y: 0.45, z: -1.2 });
     },
 
     office_marcus: function (f, r) {
@@ -772,6 +783,9 @@ const World = (function () {
       handprint(f, -7.9, 1.0, 5.98, 's');
       handprint(f, -6.5, 1.4, 5.98, 's', 0.24);
       shelf(f, -9.6, -2, 0.5, 2.4, 2.0, 4, mats.woodLight);
+      // tunnel map pinned to the north wall
+      calmObjs.items.tunnel_map = textPlane(f, -8.6, 1.5, 5.96, 0.7, 0.5, ['TUNNEL MAP', '┌──┬──┐', '├──┘  └─', '└─ B1 ───'], 's', { bg: '#d8d0b4', color: '#3a3020', size: 24, px: 256, border: '#8a7a5a' });
+      interactables.push({ id: 'tunnel_map', floor: f, x: -8.6, y: 1.5, z: 5.95 });
       // Marcus's phone on his desk (E: listen to the voicemail)
       pbox(f, -5.2, 3.5, 0.2, 0.05, 0.3, mats.dark, { y: 0.78, collide: false });
       pbox(f, -5.2, 3.5, 0.07, 0.035, 0.26, mats.metalDark, { y: 0.83, collide: false, rotY: 0.15 });
@@ -911,6 +925,8 @@ const World = (function () {
       desk(f, -8, 5.0, 2.0, 0.8);
       monitor(f, -8, 5.25, 's', { color: 0xff4a3a, mode: 'flicker' });
       interactables.push({ id: 'security_terminal', floor: f, x: -8, y: 1.15, z: 5.2 });
+      textPlane(f, -25.78, 1.1, 0, 0.9, 0.16, ['OVR-7391-PWR'], 'e', { bg: '#d9d9d2', color: '#33333a', size: 38, px: 512, family: 'Courier New, monospace' });
+      interactables.push({ id: 'power_code', floor: f, x: -25.7, y: 1.1, z: 0 });
       body(f, -13.4, -4.6, 1.8, 'lying');
       body(f, -24.6, 5.0, 0.2, 'slumped');
       handprint(f, -25.85, 1.0, 3.5, 'e'); handprint(f, -25.85, 1.6, 3.6, 'e', 0.24);
@@ -951,6 +967,8 @@ const World = (function () {
       const dr = textPlane(f, 24.58, 1.3, 3.5, 0.4, 0.5, ['  \\o/   ', ' ♥  |  ☼', ' / \\ /\\', 'to Mommy'], 'w', { bg: '#f4f0e0', color: '#2a5ad0', size: 22, px: 256, family: 'Comic Sans MS, cursive' });
       pbox(f, 25.2, -1.6, 1.2, 1.8, 1.0, mats.metalDark);
       body(f, 15.2, 4.6, 0.9, 'slumped');
+      calmObjs.items.access_badge = textPlane(f, 16.05, 0.03, 4.05, 0.16, 0.1, ['ACCESS', 'SERVER'], 'up', { bg: '#d8d8d0', color: '#a01010', size: 20, px: 128, rotZ: 0.6 });
+      interactables.push({ id: 'access_badge', floor: f, x: 16.05, y: 0.04, z: 4.05 });
       handprint(f, 14.15, 1.2, -4.5, 'e');
       dragMark(f, 15.5, 2.0, 20, 5.7, 0.35);
     },
@@ -963,6 +981,8 @@ const World = (function () {
       pbox(f, -25.7, -1.5, 0.3, 1.6, 1.8, mats.metalDark, { y: 0.3, collide: false });
       textPlane(f, -25.54, 1.4, -1.5, 1.4, 0.9, ['FIRE SUPPRESSION', 'OVERRIDE', '[ LOCKED ]'], 'e', { bg: '#7a0f0f', color: '#f2e0d0', size: 24, px: 512, border: '#ffcc22' });
       interactables.push({ id: 'fire_override', floor: f, x: -25.54, y: 1.4, z: -1.5 });
+      calmObjs.items.fuel_code = textPlane(f, -25.5, 0.78, -1.15, 0.17, 0.17, ['FUEL', 'IGNITION', '4827'], 'e', { bg: '#e8e08a', color: '#222', size: 22, px: 128, rotZ: -0.08 });
+      interactables.push({ id: 'fuel_code', floor: f, x: -25.5, y: 0.78, z: -1.15 });
       hatch(f, -22, 4.5, false);
       body(f, -8, 4.2, 0.6, 'lying');
       addFixture({ floor: f, x: -22, y: ceilY(f), z: 0, color: 0xffa020, intensity: 0.5, distance: 8, mode: 'flicker' });
@@ -1206,9 +1226,35 @@ const World = (function () {
     const g = groups[0];
     for (let i = 0; i < 18; i++) fire.sprites.push(makeFlame(g, rr(-23, 23), 1.0, rr(7, 15.4), rr(1.4, 2.4), rr(2.0, 3.2)));
     for (let i = 0; i < 4; i++) fire.sprites.push(makeFlame(g, rr(-24, -6), 0.9, rr(-5, 5), 1.6, 2.4));
-    [[-18, 9], [-4, 13], [10, 9], [20, 13], [-18, 0]].forEach(p => addFixture({ floor: 0, x: p[0], y: 1.8, z: p[1], color: 0xff7a20, intensity: 1.6, distance: 12, mode: 'flicker', visible: false }));
+    [[-18, 9], [-4, 13], [10, 9], [20, 13], [-18, 0]].forEach(p => { addFixture({ floor: 0, x: p[0], y: 1.8, z: p[1], color: 0xff7a20, intensity: 1.6, distance: 12, mode: 'flicker', visible: false }).fireAdded = true; });
     // the red emergency lights give way to orange
-    fixtures.forEach(fx => { if (fx.floor === 0 && fx.group === 'corridor') { fx.color = 0xff5a10; fx.baseColor.setHex(0xff5a10); } });
+    fixtures.forEach(fx => { if (fx.floor === 0 && fx.group === 'corridor') { fx.preFire = fx.color; fx.color = 0xff5a10; fx.baseColor.setHex(0xff5a10); } });
+  }
+
+  // The drone caught the player mid-escape: the fire goes out and the building is as it was.
+  function stopFire() {
+    if (!fire.on) return;
+    fire.on = false; fire.t = 0;
+    fire.sprites.forEach(f => { if (f.s.parent) f.s.parent.remove(f.s); });
+    fire.sprites = [];
+    fixtures.forEach(fx => { if (fx.fireAdded) fx.suppressed = true; });
+    fixtures.forEach(fx => { if (fx.floor === 0 && fx.group === 'corridor' && fx.preFire) { fx.color = fx.preFire; fx.baseColor.setHex(fx.preFire); } });
+  }
+
+  function setDrawerOpen(on) {
+    if (calmObjs.drawerShut) calmObjs.drawerShut.visible = !on;
+    if (calmObjs.drawerOpen) calmObjs.drawerOpen.visible = !!on;
+    interactables.forEach(it => { if (it.id === 'desk_drawer') it.disabled = !!on; });
+  }
+
+  // Death restarts the run: every carried item is back where it was, the drawer is locked, the fire is out.
+  function resetRun() {
+    stopFire();
+    Object.keys(calmObjs.items).forEach(id => { calmObjs.items[id].visible = true; });
+    interactables.forEach(it => { it.disabled = false; });
+    setDrawerOpen(false);
+    const ex = doors.find(d => d.exit);
+    if (ex) ex.setLocked(true);
   }
 
   function buildExterior() {
@@ -1374,6 +1420,9 @@ const World = (function () {
     setLampMode: setLampMode,
     setCalm: setCalm,
     blackout: blackout,
+    stopFire: stopFire,
+    setDrawerOpen: setDrawerOpen,
+    resetRun: resetRun,
     // carryable items: hide / show the mesh and its prompt
     setItemTaken: function (id, taken) {
       const m = calmObjs.items[id]; if (m) m.visible = !taken;

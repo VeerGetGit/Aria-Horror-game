@@ -17,7 +17,6 @@ const GameState = {
   time: 0,
   paused: false,
   deaths: 0,
-  checkpoint: null,         // set in Stage 4
   renderer: null,
   scene: null,
   camera: null,
@@ -29,7 +28,7 @@ const GameState = {
   items: {},                // carried key items by id (lost on death): photo, ...
   hasItem: function (id) { return !!this.items[id]; },
   giveItem: function (id) { this.items[id] = true; this.emit('item_pickup', id); },
-  clearItems: function () { Object.keys(this.items).forEach(k => { delete this.items[k]; }); World.setItemTaken('photo', false); },
+  clearItems: function () { Object.keys(this.items).forEach(k => { delete this.items[k]; }); this.emit('items_cleared', {}); },
   noteOpen: false,          // an inspect note is on screen
   noteClosedAt: -1e9,
   shake: 0, shakeHold: false,
@@ -44,7 +43,7 @@ const Main = (function () {
   const C = CONFIG;
   let canvas, clock, infoEl, promptEl, menuEl, pauseEl, beginBtn;
   let fpsAcc = 0, fpsFrames = 0, fps = 0;
-  let cpEl, endEl, cpTextT = 0;
+  let endEl;
   let showFps = !!C.DEBUG.SHOW_FPS, showPos = !!C.DEBUG.SHOW_POSITION;   // F2 flips both
   let frameErrors = 0;
 
@@ -54,7 +53,10 @@ const Main = (function () {
       enter: function () {
         show(menuEl, false);
         lock();
-        Cutscenes.playOpening(function () { setState('PLAYING'); });
+        Cutscenes.playOpening(function () {
+          setState('PLAYING');
+          if (GameState.deaths > 0) retryLine();      // ARIA acknowledges the restart
+        });
       }
     },
     PLAYING: {
@@ -67,29 +69,33 @@ const Main = (function () {
       }
     },
     DEAD: {
-      // The full death scene (cutscenes.js), then back to the last checkpoint.
+      // The gas death scene (cutscenes.js), then the whole run restarts from Scene 1.
       enter: function () {
         Player.state.frozen = true;
-        Cutscenes.playDeath(respawn);
+        // caught while the building burns: the fire stops, "Not yet, Doctor."; otherwise the full gas death scene
+        if (World.fireOn) Cutscenes.playFireCaught(restartRun); else Cutscenes.playDeath(restartRun);
       }
     },
     ENDING: { enter: function () { Player.state.frozen = true; } }
   };
 
-  function respawn() {
-    GameState.clearItems();                    // everything you carried is lost
-    const cp = GameState.checkpoint || C.PLAYER.SPAWN;
-    Player.teleport(cp.floor, cp.x, cp.z, cp.yaw);
-    Player.state.pitch = 0;
-    Player.state.battery = Math.max(Player.state.battery, C.FLASHLIGHT.BATTERY_MAX * 0.35);   // a little charge back
-    Player.state.frozen = !(document.pointerLockElement === canvas);
+  // Core rule: ANY death restarts the whole run from Scene 1. No checkpoints, every item is lost.
+  // The world, the drone's patrol routes and ARIA's memory of how you play stay exactly as they were.
+  function restartRun() {
+    GameState.clearItems();
+    World.resetRun();
+    Cutscenes.resetRun();
     Aria.onRespawn();
     Drone.reset();
-    GameState.state = 'PLAYING';
-    show(pauseEl, Player.state.frozen);
-    GameState.paused = Player.state.frozen;
-    // her first words after you come back
-    Dialogue.say(C.DIALOGUE[GameState.deaths === 2 ? 'deathRetry2' : 'deathRetry1'], 'retry', { force: true, interrupt: true });
+    Player.state.pitch = 0;
+    GameState.paused = false; Player.state.frozen = false;
+    setState('CUTSCENE');                      // the flashback, the calm office ... the whole opening again
+  }
+
+  function retryLine() {
+    const n = GameState.deaths;
+    const key = n <= 1 ? 'deathRetry1' : (n === 2 ? 'deathRetry2' : 'deathRetry3');
+    Dialogue.say(C.DIALOGUE[key], 'retry', { force: true, interrupt: true });
   }
 
   // Called by the drone when it reaches the player (or opens their hiding spot).
@@ -98,23 +104,6 @@ const Main = (function () {
     GameState.deaths++;
     GameState.emit('caught', { deaths: GameState.deaths });
     setState('DEAD');
-  }
-
-  // Walking near a checkpoint makes it the respawn point.
-  function updateCheckpoint(dt) {
-    if (cpTextT > 0) { cpTextT -= dt; if (cpTextT <= 0) show(cpEl, false); }
-    if (GameState.state !== 'PLAYING') return;
-    const P = GameState.player;
-    for (let i = 0; i < C.CHECKPOINTS.length; i++) {
-      const c = C.CHECKPOINTS[i];
-      if (c.floor !== P.floor || Math.hypot(c.x - P.x, c.z - P.z) > c.r) continue;
-      if (GameState.checkpoint && GameState.checkpoint.id === c.id) return;
-      GameState.checkpoint = { id: c.id, floor: c.floor, x: c.x, z: c.z, yaw: c.yaw };
-      cpEl.textContent = 'CHECKPOINT — ' + c.name.toUpperCase();
-      show(cpEl, true); cpTextT = C.CHECKPOINT_TEXT_TIME;
-      GameState.emit('checkpoint', c);
-      return;
-    }
   }
 
   // After the credits: the end card.
@@ -194,13 +183,13 @@ const Main = (function () {
     const t = GameState.time;
     const sdt = GameState.paused ? 0 : dt;
     Player.update(sdt, t);
-    updateCheckpoint(sdt);
     Aria.update(sdt, t);
     Cutscenes.update(sdt, t);
     Dialogue.update(sdt, t);
     Drone.update(sdt, t);
     World.update(sdt, t, GameState.player);
     Hud.update(dt, t);
+    Items.update(sdt);
     Sound.update(dt);
   }
 
@@ -227,7 +216,6 @@ const Main = (function () {
     menuEl = document.getElementById('menu');
     pauseEl = document.getElementById('pause');
     beginBtn = document.getElementById('begin');
-    cpEl = document.getElementById('checkpoint');
     endEl = document.getElementById('endcard');
     document.getElementById('again').addEventListener('click', function () { location.reload(); });
 
@@ -250,6 +238,7 @@ const Main = (function () {
     Aria.init();
     Drone.init();
     Sound.init();
+    Items.init();
 
     window.addEventListener('resize', onResize);
     document.addEventListener('pointerlockerror', function () { releaseLock(); onLockChange(); });
@@ -271,5 +260,5 @@ const Main = (function () {
 
   window.addEventListener('DOMContentLoaded', init);
 
-  return { releaseLock: releaseLock, setState: setState, caught: caught, respawn: respawn, endCard: endCard, step: step };
+  return { releaseLock: releaseLock, setState: setState, caught: caught, restartRun: restartRun, endCard: endCard, step: step };
 })();

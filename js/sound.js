@@ -304,6 +304,18 @@ const Sound = (function () {
       const lp = filt('bandpass', f * 3, 3), g = a.createGain();
       env(g, t, [[0.9, 0.09], [1.8, 0.07], [2.8, 0.001]]); o.connect(lp); lp.connect(g); g.connect(sfx); g.connect(verb);
     },
+    access_denied: t => {
+      toneShot(sfx, t, 'square', 150, 110, 0.18, [[0.005, 0.12], [0.18, 0.001]]);
+      toneShot(sfx, t + 0.2, 'square', 150, 110, 0.18, [[0.005, 0.12], [0.18, 0.001]]);
+    },
+    item_pickup: t => {
+      toneShot(sfx, t, 'sine', 660, 660, 0.4, [[0.01, 0.08], [0.4, 0.001]], true);
+      toneShot(sfx, t + 0.09, 'sine', 990, 990, 0.5, [[0.01, 0.06], [0.5, 0.001]], true);
+    },
+    lost: t => {
+      toneShot(sfx, t, 'sawtooth', 60, 28, 1.6, [[0.2, 0.2], [1.2, 0.14], [1.6, 0.001]], true);
+      noiseShot(sfx, t, 1.4, 'lowpass', 400, 0, [[0.3, 0.12], [1.3, 0.001]], true);
+    },
     phone_pickup: t => {                   // handset lifted: plastic click + a short line hiss
       noiseShot(sfx, t, 0.12, 'bandpass', 1800, 2, [[0.003, 0.2], [0.1, 0.001]]);
       toneShot(sfx, t + 0.05, 'square', 190, 120, 0.08, [[0.003, 0.16], [0.08, 0.001]]);

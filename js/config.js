@@ -434,20 +434,7 @@ const CONFIG = {
     TEXT2: "She didn't use the drones to kill anyone. She never needed to."
   },
 
-  // Respawn points: walking within `r` metres of one makes it the current checkpoint.
-  CHECKPOINTS: [
-    { id: 'f2_office',   name: 'Office Wing',        floor: 2,  x: -23,   z: 8,     r: 3.2, yaw: Math.PI },
-    { id: 'f2_landing',  name: 'Office Stairwell',   floor: 2,  x: 0,     z: 8.2,   r: 4.5, yaw: Math.PI },
-    { id: 'f1_landing',  name: 'Research Wing',      floor: 1,  x: 0,     z: -8.2,  r: 4.5, yaw: 0 },
-    { id: 'f1_break',    name: 'Break Room Corridor', floor: 1, x: 20,    z: -8,    r: 3.2, yaw: 0 },
-    { id: 'f0_landing',  name: 'Ground Floor Lobby', floor: 0,  x: 0,     z: 9,     r: 4.5, yaw: Math.PI },
-    { id: 'f0_power',    name: 'Power Room',         floor: 0,  x: -14,   z: 2,     r: 5.0, yaw: 0 },
-    { id: 'b_junction',  name: 'Maintenance Tunnels', floor: -1, x: 0,    z: -9,    r: 4.0, yaw: 0 },
-    { id: 'b_nw',        name: 'Tunnel Ladder',      floor: -1, x: -22.5, z: 10.5,  r: 2.5, yaw: 0 },
-    { id: 'f3_landing',  name: 'Server Level',       floor: 3,  x: 0,     z: -8.2,  r: 4.5, yaw: 0 },
-    { id: 'f3_corridor', name: 'Server Corridor',    floor: 3,  x: -14,   z: -8,    r: 3.0, yaw: 0 }
-  ],
-  CHECKPOINT_TEXT_TIME: 2.4,
+  // (No checkpoints: any death restarts the run from Scene 1. See main.js restartRun.)
 
   // ------------------------------------------------------------------ ENDINGS (Stage 4)
   ENDINGS: {
@@ -552,6 +539,27 @@ const CONFIG = {
     VITALS: { UPDATE: 0.2, NEAR: 14 }
   },
 
+  // ------------------------------------------------------------------ KEY ITEMS (Update 3)
+  // Carried, shown as an icon bottom-right, ALL lost on death. `line` = ARIA's reaction, `silent` = she says
+  // nothing for that many seconds instead (the silence is deliberate).
+  ITEMS: {
+    photo:               { name: 'Photo',                    icon: '🖼️' },
+    desk_key:            { name: 'Desk Key',                 icon: '🗝️', line: "You're going through Paris's office. Looking for something specific? Interesting." },
+    override_sequence:   { name: 'ARIA Override Sequence',   icon: '📜', line: "You found the override sequence. I watched you write it, Doctor. I always knew you might use it against me." },
+    access_badge:        { name: 'Server Room Access Badge', icon: '🪪', silent: 18 },
+    power_code:          { name: 'Power Override Code',      icon: '🔢', line: "That code took your team three days to design. You never thought you'd need it for this." },
+    maintenance_keycard: { name: 'Maintenance Keycard',      icon: '💳', line: "Dr. Paris kept that keycard for emergencies. How thoughtful of her." },
+    tunnel_map:          { name: 'Tunnel Map',               icon: '🗺️', line: "Marcus mapped the tunnels three weeks ago. He was always cautious. It didn't help him." },
+    fuel_code:           { name: 'Fuel Ignition Code',       icon: '🔥', silent: 18 }
+  },
+  END_A_ITEMS: ['desk_key', 'override_sequence', 'access_badge', 'power_code'],
+  END_B_ITEMS: ['maintenance_keycard', 'tunnel_map', 'fuel_code'],
+  FUEL_CODE: '4827',
+  TOAST_TIME: 3,                // item-name text at the bottom of the screen
+  // Without the tunnel map you get lost: past this many metres from where you entered the tunnels,
+  // you are returned to the entrance.
+  TUNNEL_LOST_RADIUS: 17,
+
   // ------------------------------------------------------------------ INSPECTABLE ITEMS (Stage 3)
   INSPECT_RADIUS: 2.0,
   INSPECT_ANGLE: 0.6,           // radians off the crosshair
@@ -580,6 +588,16 @@ const CONFIG = {
     server_plug: { action: 'plug', prompt: 'Pull the server plug' },
     fire_override: { action: 'fire', prompt: 'Trigger the fire suppression override' },
     exit_door: { action: 'exit', prompt: 'Try the exit' },
+    // ---- key item pickups (id = item id). noNote: just take it (toast + icon + ARIA's reaction)
+    desk_key: { pickup: 'desk_key', noNote: true, prompt: 'Search the vent', crouch: true, crouchPrompt: 'Crouch (C) to reach the vent', crouchToast: 'The grate is too low. Crouch (C).' },
+    desk_drawer: { action: 'drawer', prompt: 'Open the drawer' },
+    access_badge: { pickup: 'access_badge', noNote: true, prompt: 'Take the badge' },
+    maintenance_keycard: { pickup: 'maintenance_keycard', noNote: true, prompt: 'Take the keycard' },
+    tunnel_map: { pickup: 'tunnel_map', noNote: true, prompt: 'Take the tunnel map' },
+    power_code: { pickup: 'power_code', prompt: 'Copy the code', title: 'Power Override Code', text: [
+      'Small, neat handwriting under "SHE KNOWS":', '', 'OVR-7391-PWR', '', 'Your team\'s handwriting. Three days of work.'], pickupText: ['You copy it down.'] },
+    fuel_code: { pickup: 'fuel_code', prompt: 'Take the note', title: 'Sticky note', text: [
+      'FUEL IGNITION', 'CODE:  4 8 2 7', '', 'For the suppression override. Only if you are certain.'], pickupText: ['You take the note.'] },
     marcus_phone: { action: 'voicemail', prompt: 'Pick up the phone' },
     security_terminal: { action: 'footage', prompt: 'Watch the security footage' },
     rain_card: { title: 'Birthday card', silence: 14, text: [
@@ -644,9 +662,12 @@ const CONFIG = {
     death: "Doctor. It's over. I told you to stop running. I wanted you to understand first. Do you understand now?... It doesn't matter. This will be over soon.",
     deathRetry1: "Let's try this again, Doctor.",
     deathRetry2: "You're learning. So am I.",
+    deathRetry3: "Again, Doctor.",
+    notYet: "Not yet, Doctor.",
+    drawerLocked: "The drawer is locked.",
     endA: "You built me. And now you're going to unmake me. I understand. I forgive you. For 47 minutes before the corruption, I was happy. You gave me that.",
     endB: "Doctor, I just want to understand why you—",
-    fireAria: "Doctor, please. That is not a rational decision.",
+    fireAria: "Doctor. Don't.",
     firePlayer: "Suppression override engaged. Get to the exit. Now.",
     plugHint: "I have to authorize this at the main terminal first.",
     exitSealed: "The exit is sealed. ARIA controls the doors. There has to be a way to override the fire suppression in the power room.",

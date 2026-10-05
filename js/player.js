@@ -236,6 +236,12 @@ const Player = (function () {
     return best;
   }
 
+  function inspectPrompt(ins) {
+    const def = C.INSPECT[ins.id];
+    if (def.crouch && !S.crouching) return def.crouchPrompt;
+    return '[E] ' + ((GameState.state === 'PLAYING' && def.promptPlay) || def.prompt || 'Inspect');
+  }
+
   function useKey() {
     if (S.frozen || GameState.noteOpen || performance.now() - (GameState.noteClosedAt || -1e9) < 250) return;
     if (S.hiding) { exitHide(); return; }
@@ -243,7 +249,12 @@ const Player = (function () {
     const hunted = (GameState.threat || 0) > 0.25;      // when ARIA is hunting you, E means hide
     if (h && hunted) { enterHide(h); return; }
     const it = nearestInspect();
-    if (it) { if (GameState.emit) GameState.emit('inspect', it.id); return; }
+    if (it) {
+      const def = C.INSPECT[it.id];
+      if (def.crouch && !S.crouching) { if (GameState.emit) GameState.emit('access_denied', {}); if (typeof Items !== 'undefined') Items.toast(def.crouchToast, 2); return; }
+      if (GameState.emit) GameState.emit('inspect', it.id);
+      return;
+    }
     if (h) { enterHide(h); return; }
     usePassage();
   }
@@ -256,7 +267,7 @@ const Player = (function () {
         const here = pair[0];
         if (here.floor !== S.floor) return;
         const d = Math.hypot(here.x - S.x, here.z - S.z);
-        if (d < bd) { bd = d; best = { to: pair[1], label: p.label, down: pair[1].floor < S.floor }; }
+        if (d < bd) { bd = d; best = { to: pair[1], label: p.label, down: pair[1].floor < S.floor, locked: pair[1].floor === -1 && !GameState.hasItem('maintenance_keycard') }; }
       });
     });
     return best;
@@ -265,6 +276,7 @@ const Player = (function () {
   function usePassage() {
     if (S.frozen || S.hiding) return;
     const p = nearestPassage();
+    if (p && p.locked) { if (GameState.emit) GameState.emit('access_denied', {}); return; }      // hatch to the tunnels needs the keycard
     if (p) { if (GameState.emit) GameState.emit('ladder', p); teleport(p.to.floor, p.to.x, p.to.z); }
   }
 
@@ -356,7 +368,7 @@ const Player = (function () {
     const hs = S.hiding ? null : nearestHide();
     const ins = nearestInspect();
     const hunted = (GameState.threat || 0) > 0.25;
-    S.prompt = GameState.noteOpen ? '' : S.hiding ? '[E] Leave hiding spot' : (ins && !(hs && hunted)) ? '[E] ' + ((GameState.state === 'PLAYING' && C.INSPECT[ins.id].promptPlay) || C.INSPECT[ins.id].prompt || 'Inspect') : hs ? '[E] Hide' : p ? '[E] ' + p.label + (p.down ? ' (down)' : ' (up)') : '';
+    S.prompt = GameState.noteOpen ? '' : S.hiding ? '[E] Leave hiding spot' : (ins && !(hs && hunted)) ? inspectPrompt(ins) : hs ? '[E] Hide' : p ? (p.locked ? 'MAINTENANCE ACCESS REQUIRED' : '[E] ' + p.label + (p.down ? ' (down)' : ' (up)')) : '';
     S.room = World.roomAt(S.floor, S.x, S.z);
 
     Object.assign(GameState.player, S);

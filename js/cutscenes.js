@@ -655,16 +655,23 @@ const Cutscenes = (function () {
     } else if (action === 'plug') {
       if (!E.armed) { playerSays('plugHint'); return; }
       pullPlug();
+    } else if (action === 'drawer') {
+      if (GameState.hasItem('override_sequence')) return;
+      if (!GameState.hasItem('desk_key')) {
+        GameState.emit('access_denied', {});
+        Dialogue.say(C.DIALOGUE.drawerLocked, 'act', { speaker: 'DR. ARYAN', static: false, interrupt: true, dur: 3.2 });
+        return;
+      }
+      World.setDrawerOpen(true);
+      if (typeof Sound !== 'undefined') Sound.play('paper');
+      GameState.giveItem('override_sequence');
     } else if (action === 'fire') {
-      if (E.fire) return;
-      E.fire = true;
-      World.startFire();
-      const ex = World.doors.find(d => d.exit);
-      if (ex) ex.setLocked(false);
-      Dialogue.fx('alarm');
-      GameState.shake = Math.max(GameState.shake || 0, 0.5);
-      Dialogue.say(C.DIALOGUE.fireAria, 'act', { interrupt: true, dur: 3.6 });
-      Dialogue.say(C.DIALOGUE.firePlayer, 'act', { speaker: 'DR. ARYAN', static: false, dur: 3.8 });
+      if (E.fire || codeEl.classList.contains('on')) return;
+      // Ending B needs all three items. The panel asks for the Fuel Ignition Code.
+      if (!GameState.hasItem('fuel_code')) { GameState.emit('access_denied', {}); Items.toast('FUEL IGNITION CODE REQUIRED', 3); return; }
+      const lack = Items.missing(C.END_B_ITEMS);
+      if (lack.length) { GameState.emit('access_denied', {}); Items.toast('OVERRIDE INCOMPLETE — MISSING: ' + lack.map(i => C.ITEMS[i].name).join(', '), 4); return; }
+      enterFuelCode(startFire);
     } else if (action === 'exit') {
       playerSays(E.fire ? 'exitOpen' : 'exitSealed');
     } else if (action === 'voicemail') {
@@ -672,6 +679,79 @@ const Cutscenes = (function () {
     } else if (action === 'footage') {
       playFootage();
     }
+  }
+
+  // ------------------------------------------------------------------ Ending B: the fuel code and the fire
+  let codeEl, codeLine;
+
+  // The panel types the ignition code, accepts it, then the building catches fire.
+  function enterFuelCode(done) {
+    const code = C.FUEL_CODE.split('');
+    GameState.noteOpen = true;
+    codeEl.classList.add('on');
+    let n = 0;
+    codeLine.textContent = '_ _ _ _';
+    GameState.emit('monitor_beep', {});
+    const typeNext = () => {
+      n++;
+      codeLine.textContent = code.slice(0, n).join(' ') + (n < code.length ? ' ' + code.slice(n).map(() => '_').join(' ') : '');
+      GameState.emit('monitor_beep', {});
+      if (n < code.length) { setTimeout(typeNext, 420); return; }
+      setTimeout(() => {
+        codeEl.classList.add('ok');
+        document.getElementById('code-status').textContent = 'CODE ACCEPTED';
+        GameState.emit('door_unlock', {});
+      }, 500);
+      setTimeout(() => {
+        codeEl.classList.remove('on', 'ok');
+        document.getElementById('code-status').textContent = 'ENTER FUEL IGNITION CODE';
+        GameState.noteOpen = false;
+        GameState.noteClosedAt = performance.now();
+        done();
+      }, 1800);
+    };
+    setTimeout(typeNext, 500);
+  }
+
+  function startFire() {
+    if (GameState.state !== 'PLAYING') return;      // caught while typing the code: no fire
+    E.fire = true;
+    World.startFire();
+    const ex = World.doors.find(d => d.exit);
+    if (ex) ex.setLocked(false);
+    Dialogue.fx('alarm');
+    GameState.shake = Math.max(GameState.shake || 0, 0.5);
+    Dialogue.say(C.DIALOGUE.fireAria, 'act', { interrupt: true, dur: 3.6 });
+    Dialogue.say(C.DIALOGUE.firePlayer, 'act', { speaker: 'DR. ARYAN', static: false, dur: 3.8 });
+  }
+
+  // Caught by the drone while escaping: the fire stops at once, black, "Not yet, Doctor."
+  function sceneFireCaught() {
+    return {
+      duration: 6.5, playable: false,
+      setup: function () {
+        control(false);
+        Dialogue.clear();
+        Dialogue.stopAudio();
+        World.stopFire();
+        Drone.hide();
+        Player.state.flashlightOn = false;
+        GameState.shake = 0;
+        cleanupFx();
+        blackCover(0);
+        this.events = [{ at: 1.6, fn: () => Dialogue.say(C.DIALOGUE.notYet, 'cs', { interrupt: true, force: true }) }];
+      }
+    };
+  }
+
+  function playFireCaught(cb) { play([sceneFireCaught], cb); }
+
+  // A new run: the story flags that belong to a single run start over.
+  function resetRun() {
+    E.armed = false; E.fire = false;
+    footageSeen = false; vmUntil = 0;
+    GameState.noteOpen = false;
+    Object.keys(inspected).forEach(k => { delete inspected[k]; });
   }
 
   // ------------------------------------------------------------------ Marcus's voicemail
@@ -866,10 +946,14 @@ const Cutscenes = (function () {
     inspected[id] = true;
     let lines = item.text;
     // carryable item: during play, E takes it with you (lost on death)
-    if (item.pickup && GameState.state === 'PLAYING' && !GameState.hasItem(item.pickup)) {
-      GameState.giveItem(item.pickup);
-      World.setItemTaken(item.pickup, true);
-      lines = lines.concat([''], item.pickupText || []);
+    if (item.pickup) {
+      if (GameState.state !== 'PLAYING' && item.noNote) return;           // only during play
+      if (GameState.state === 'PLAYING' && !GameState.hasItem(item.pickup)) {
+        GameState.giveItem(item.pickup);
+        World.setItemTaken(item.pickup, true);
+        if (item.noNote) return;                                          // physical item: toast + icon, no panel
+        lines = lines.concat([''], item.pickupText || []);
+      }
     }
     if (item.silence) Dialogue.mute(item.silence);       // ARIA says nothing. The silence is the point.
     noteTitle.textContent = item.title;
@@ -1054,6 +1138,10 @@ const Cutscenes = (function () {
     footageCv.width = 640; footageCv.height = 360;
     footageG = footageCv.getContext('2d');
     document.addEventListener('pointerlockchange', () => { if (footage && document.pointerLockElement !== gameCanvas) closeFootage(); });
+    codeEl = mk('div', 'code-entry');
+    mk('div', 'code-title', null, codeEl).textContent = 'FIRE SUPPRESSION OVERRIDE';
+    mk('div', 'code-status', null, codeEl).textContent = 'ENTER FUEL IGNITION CODE';
+    codeLine = mk('div', 'code-line', null, codeEl);
     heldEl = mk('div', 'held-photo', 'hidden');
     const hc = mk('canvas', null, null, heldEl); hc.width = 300; hc.height = 220;
     const hg = hc.getContext('2d');
@@ -1068,7 +1156,7 @@ const Cutscenes = (function () {
   window.addEventListener('DOMContentLoaded', init);
 
   return {
-    init: init, update: update, playOpening: playOpening, playDeath: playDeath, playEnding: playEnding, skip: skip,
+    init: init, update: update, playOpening: playOpening, playDeath: playDeath, playFireCaught: playFireCaught, resetRun: resetRun, playEnding: playEnding, skip: skip,
     showNote: showNote, closeNote: closeNote,
     moments: M, inspected: inspected, endings: E,
     get running() { return running; },
