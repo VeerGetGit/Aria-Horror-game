@@ -31,6 +31,7 @@ const Player = (function () {
     floor: 2,
     crouching: false, sprinting: false, moving: false,
     stepDist: 0, bobPhase: 0, bobAmp: 0,
+    stamina: 1, winded: false,
     noiseRadius: 0,
     battery: F.BATTERY_MAX,
     flashlightOn: false,
@@ -54,7 +55,12 @@ const Player = (function () {
   const canControl = () => GameState.state === 'PLAYING' || (GameState.state === 'CUTSCENE' && GameState.cutsceneControl);
 
   // ------------------------------------------------------------------ input
+  function releaseLock() {
+    if (document.exitPointerLock) { try { document.exitPointerLock(); } catch (err) { /* ignore */ } }
+  }
+
   function onKeyDown(e) {
+    if (e.code === 'Escape') releaseLock();          // Esc ALWAYS frees the cursor, whatever the game state
     if (!GameState || !canControl()) return;
     keys[e.code] = true;
     if (document.pointerLockElement === lockEl) e.preventDefault();
@@ -87,7 +93,7 @@ const Player = (function () {
 
   function updateFlashlight(dt, t) {
     if (S.flashlightOn && S.floor === -1) {
-      S.battery = Math.max(0, S.battery - F.BATTERY_DRAIN_PER_SEC * dt);
+      S.battery = Math.max(0, S.battery - F.BATTERY_DRAIN * dt);
       if (S.battery <= 0) S.flashlightOn = false;
     }
     let k = S.flashlightOn ? 1 : 0;
@@ -115,7 +121,14 @@ const Player = (function () {
     if (len > 0) { wx /= len; wz /= len; }
 
     S.crouching = anyDown(P.KEYS.CROUCH);
-    S.sprinting = !S.crouching && fwd > 0 && anyDown(P.KEYS.SPRINT);
+    // sprint with a stamina cap: holding Shift forever can never keep the player (or the game) in a sprint
+    const wantSprint = !S.crouching && fwd > 0 && anyDown(P.KEYS.SPRINT);
+    if (S.winded && S.stamina >= P.SPRINT_RESUME) S.winded = false;
+    S.sprinting = wantSprint && !S.winded && S.stamina > 0;
+    if (S.sprinting) {
+      S.stamina -= dt / P.SPRINT_MAX_SECONDS;
+      if (S.stamina <= 0) { S.stamina = 0; S.winded = true; S.sprinting = false; if (GameState.emit) GameState.emit('winded', {}); }
+    } else S.stamina = Math.min(1, S.stamina + dt / P.SPRINT_RECOVER_SECONDS);
     const target = len === 0 ? 0 : (S.crouching ? P.CROUCH_SPEED : (S.sprinting ? P.SPRINT_SPEED : P.WALK_SPEED));
 
     const a = Math.min(1, P.ACCEL * dt);
@@ -286,6 +299,8 @@ const Player = (function () {
     document.addEventListener('keyup', onKeyUp);
     document.addEventListener('mousemove', onMouseMove);
     window.addEventListener('blur', clearKeys);
+    document.addEventListener('visibilitychange', clearKeys);
+    document.addEventListener('pointerlockchange', clearKeys);   // a key released while the lock was changing never sends keyup
     reset();
   }
 
@@ -293,6 +308,7 @@ const Player = (function () {
     const sp = P.SPAWN;
     S.battery = F.BATTERY_MAX;
     S.flashlightOn = false;
+    S.stamina = 1; S.winded = false;
     S.hiding = null;
     S.eye = P.EYE_STAND;
     S.pitch = sp.pitch;

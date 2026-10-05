@@ -10,16 +10,17 @@ Open `index.html` directly in a browser — no local server needed. Three.js is 
 | W A S D | Move |
 | Mouse | Look (click BEGIN to capture the pointer; Esc pauses) |
 | Shift | Sprint (loud) |
-| Ctrl or C | Crouch (silent) — `C` exists because Ctrl+W closes the browser tab |
+| C | Crouch (silent) — Ctrl no longer crouches (Ctrl+W closes the tab) |
+| F2 | Show / hide the FPS counter and position readout (hidden by default) |
 | F | Flashlight (battery drains only in the basement tunnels) |
 | E | Use: inspect notes / the computer / the photo, hide in a locker or under a desk (press again to come out; while ARIA hunts you, E always means hide), climb the hidden ladder hatches |
 | M | Mute / unmute all sound |
 | Space | Skip the current cutscene (opening scenes, the death scene) |
-| 1 – 5 | **Debug:** jump to Floor 2 / Floor 1 / Basement / Floor 3 / Ground |
+| 1 – 5 | **Debug (only if `DEBUG.ENABLED = true`):** jump to Floor 2 / Floor 1 / Basement / Floor 3 / Ground |
 
 ## Tuning
 
-Everything tunable lives in `js/config.js` (speeds, sizes, lighting, battery drain, level layout, later: dialogue). Set `DEBUG.ENABLED` / `DEBUG.SHOW_INFO` to `false` before shipping.
+Everything tunable lives in `js/config.js` (speeds, sizes, lighting, battery drain, level layout, later: dialogue). `DEBUG.ENABLED` is `false` by default (floor-jump keys off); F2 toggles the FPS / position overlay.
 
 ## File map
 

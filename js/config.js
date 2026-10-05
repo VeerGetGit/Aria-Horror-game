@@ -81,6 +81,12 @@ const CONFIG = {
     BOB: { WALK: 0.035, SPRINT: 0.06, CROUCH: 0.015, FREQ: 1.9 },
     STEP_STRIDE: { WALK: 1.7, SPRINT: 1.3, CROUCH: 2.2 }, // metres per step event
     NOISE_RADIUS: { IDLE: 0, CROUCH: 1.5, WALK: 6, SPRINT: 14 },
+    // Sprint safeguard: a held Shift can never run forever. After SPRINT_MAX_SECONDS the
+    // player is winded (walks) until stamina climbs back to SPRINT_RESUME. Also keeps a single
+    // unbroken Shift hold well under Windows' 8-second Filter Keys prompt.
+    SPRINT_MAX_SECONDS: 5,
+    SPRINT_RECOVER_SECONDS: 3.5,
+    SPRINT_RESUME: 0.3,
     SPAWN: { floor: 2, x: -23, z: -1.4, yaw: 0, pitch: 0 },
     PASSAGE_USE_RADIUS: 1.6,
     KEYS: {
@@ -89,7 +95,7 @@ const CONFIG = {
       LEFT: ['KeyA', 'ArrowLeft'],
       RIGHT: ['KeyD', 'ArrowRight'],
       SPRINT: ['ShiftLeft', 'ShiftRight'],
-      CROUCH: ['ControlLeft', 'ControlRight', 'KeyC'], // C because Ctrl+W closes a tab
+      CROUCH: ['KeyC'],                // C only (Ctrl+W closes the browser tab)
       FLASHLIGHT: ['KeyF'],
       USE: ['KeyE']
     }
@@ -98,14 +104,14 @@ const CONFIG = {
   // ------------------------------------------------------------------ FLASHLIGHT / BATTERY
   FLASHLIGHT: {
     COLOR: 0xfff1d6,
-    INTENSITY: 2.8,
-    DISTANCE: 24,
-    ANGLE: 0.46,
+    INTENSITY: 4,
+    DISTANCE: 25,
+    ANGLE: 0.45,
     PENUMBRA: 0.45,
     DECAY: 1.4,
     START_ON_IN_TUNNELS: true,
     BATTERY_MAX: 100,
-    BATTERY_DRAIN_PER_SEC: 1.1, // only drains while in the basement tunnels
+    BATTERY_DRAIN: 0.05,        // battery % lost per second, only in the basement tunnels
     BATTERY_LOW: 20,
     LOW_FLICKER_RATE: 22
   },
@@ -166,8 +172,9 @@ const CONFIG = {
 
   // ------------------------------------------------------------------ DEBUG
   DEBUG: {
-    ENABLED: true,
-    SHOW_INFO: true,
+    ENABLED: false,             // true = debug floor-jump keys 1-5 work
+    SHOW_FPS: false,            // start state of the FPS line (F2 toggles it in game)
+    SHOW_POSITION: false,       // start state of the position/state readout (F2 toggles it)
     SKIP_OPENING: false,        // true = skip the 6 opening scenes and start playing at once,
     TELEPORT_KEYS: { Digit1: 2, Digit2: 1, Digit3: -1, Digit4: 3, Digit5: 0 }
   },

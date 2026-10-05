@@ -426,6 +426,7 @@ const Sound = (function () {
     on('checkpoint', () => play('checkpoint'));
     on('flashlight', d => play('flashlight', d));
     on('ladder', () => play('ladder'));
+    on('winded', () => play('breath'));
     on('drone_lost', () => play('drone_lost'));
     Player.onStep = function (S) { play('footstep', { floor: S.floor, sprint: S.sprinting, crouch: S.crouching }); };
   }

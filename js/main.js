@@ -41,6 +41,8 @@ const Main = (function () {
   let canvas, clock, infoEl, promptEl, menuEl, pauseEl, beginBtn;
   let fpsAcc = 0, fpsFrames = 0, fps = 0;
   let cpEl, endEl, cpTextT = 0;
+  let showFps = !!C.DEBUG.SHOW_FPS, showPos = !!C.DEBUG.SHOW_POSITION;   // F2 flips both
+  let frameErrors = 0;
 
   const STATES = {
     MENU: { enter: function () { show(menuEl, true); show(pauseEl, false); } },
@@ -119,20 +121,30 @@ const Main = (function () {
 
   function show(el, on) { if (el) el.classList.toggle('hidden', !on); }
 
+  // Frees the cursor. Called on Esc, on any error, on pause and when leaving gameplay.
+  function releaseLock() {
+    if (document.exitPointerLock) { try { document.exitPointerLock(); } catch (e) { /* ignore */ } }
+  }
+
   function setState(next) {
     GameState.state = next;
+    if (next === 'MENU' || next === 'ENDING') releaseLock();
     if (STATES[next] && STATES[next].enter) STATES[next].enter();
   }
 
   function lock() {
     if (canvas.requestPointerLock) {
-      try { canvas.requestPointerLock(); } catch (e) { /* ignored */ }
+      try {
+        const r = canvas.requestPointerLock();
+        if (r && r.catch) r.catch(function () { releaseLock(); onLockChange(); });   // refused (no gesture): never leave a half-locked cursor
+      } catch (e) { releaseLock(); }
     }
   }
 
   function onLockChange() {
     const locked = document.pointerLockElement === canvas;
     const active = GameState.state === 'PLAYING' || (GameState.state === 'CUTSCENE' && GameState.cutsceneControl);
+    if (!locked) Player.releaseKeys();
     if (active) {
       GameState.paused = !locked;
       Player.state.frozen = !locked;
@@ -150,15 +162,19 @@ const Main = (function () {
     fpsAcc += dt; fpsFrames++;
     if (fpsAcc >= 0.5) { fps = Math.round(fpsFrames / fpsAcc); fpsAcc = 0; fpsFrames = 0; }
     const p = GameState.player;
-    if (infoEl && C.DEBUG.SHOW_INFO && GameState.state === 'PLAYING') {
-      infoEl.textContent =
-        'FLOOR ' + p.floor + '  |  ' + (p.room || '') + '\n' +
-        'x ' + p.x.toFixed(1) + '  y ' + p.y.toFixed(1) + '  z ' + p.z.toFixed(1) + '\n' +
-        (p.crouching ? 'CROUCH' : p.sprinting ? 'SPRINT' : p.moving ? 'WALK' : 'IDLE') +
-        '  noise ' + p.noiseRadius + 'm  |  ' + fps + ' fps\n' +
-        'Flashlight ' + (p.flashlightOn ? 'ON' : 'off') + '  battery ' + Math.round(p.battery) + '%\n' +
-        'Drone ' + Drone.state + ' (floor ' + Drone.data.floor + ')  threat ' + (GameState.threat || 0).toFixed(2) + '  deaths ' + GameState.deaths + '\n' +
-        (C.DEBUG.ENABLED ? '[1] F2  [2] F1  [3] Basement  [4] F3  [5] Ground' : '');
+    // Hidden by default. F2 reveals the FPS counter and the position / state readout.
+    if (infoEl && (showFps || showPos) && GameState.state === 'PLAYING') {
+      const lines = [];
+      if (showPos) {
+        lines.push('FLOOR ' + p.floor + '  |  ' + (p.room || ''));
+        lines.push('x ' + p.x.toFixed(1) + '  y ' + p.y.toFixed(1) + '  z ' + p.z.toFixed(1));
+        lines.push((p.crouching ? 'CROUCH' : p.sprinting ? 'SPRINT' : p.moving ? 'WALK' : 'IDLE') + '  noise ' + p.noiseRadius + 'm  stamina ' + Math.round(p.stamina * 100) + '%');
+        lines.push('Flashlight ' + (p.flashlightOn ? 'ON' : 'off') + '  battery ' + Math.round(p.battery) + '%');
+        lines.push('Drone ' + Drone.state + ' (floor ' + Drone.data.floor + ')  threat ' + (GameState.threat || 0).toFixed(2) + '  deaths ' + GameState.deaths);
+        if (C.DEBUG.ENABLED) lines.push('[1] F2  [2] F1  [3] Basement  [4] F3  [5] Ground');
+      }
+      if (showFps) lines.push(fps + ' fps');
+      infoEl.textContent = lines.join('\n');
       infoEl.classList.remove('hidden');
     } else if (infoEl) infoEl.classList.add('hidden');
     if (promptEl) {
@@ -184,11 +200,19 @@ const Main = (function () {
   }
 
   function loop() {
-    requestAnimationFrame(loop);
-    const dt = Math.min(clock.getDelta(), 0.1);
-    step(dt);
-    updateInfo(dt);
-    GameState.renderer.render(GameState.scene, GameState.camera);
+    requestAnimationFrame(loop);               // scheduled first: nothing below can stop the loop
+    try {
+      let dt = clock.getDelta();
+      if (!(dt > 0) || !isFinite(dt)) dt = 0.016;
+      dt = Math.min(dt, 0.1);
+      step(dt);
+      updateInfo(dt);
+      GameState.renderer.render(GameState.scene, GameState.camera);
+      frameErrors = 0;
+    } catch (e) {
+      // a frame failed: free the cursor so the player is never trapped, and keep the loop alive
+      if (frameErrors++ === 0) { releaseLock(); if (window.console) console.error(e); }
+    }
   }
 
   function init() {
@@ -223,6 +247,13 @@ const Main = (function () {
     Sound.init();
 
     window.addEventListener('resize', onResize);
+    document.addEventListener('pointerlockerror', function () { releaseLock(); onLockChange(); });
+    window.addEventListener('error', releaseLock);                      // any uncaught error frees the cursor
+    window.addEventListener('unhandledrejection', releaseLock);
+    document.addEventListener('keydown', function (e) {
+      if (e.code === 'Escape') releaseLock();                           // Esc always frees the cursor
+      if (e.code === 'F2' && !e.repeat) { e.preventDefault(); const on = !(showFps || showPos); showFps = showPos = on; }
+    });
     document.addEventListener('pointerlockchange', onLockChange);
     beginBtn.addEventListener('click', function () { Sound.unlock(); setState('CUTSCENE'); });
     pauseEl.addEventListener('click', function () { lock(); });
@@ -235,5 +266,5 @@ const Main = (function () {
 
   window.addEventListener('DOMContentLoaded', init);
 
-  return { setState: setState, caught: caught, respawn: respawn, endCard: endCard, step: step };
+  return { releaseLock: releaseLock, setState: setState, caught: caught, respawn: respawn, endCard: endCard, step: step };
 })();
