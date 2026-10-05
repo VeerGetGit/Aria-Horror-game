@@ -304,6 +304,16 @@ const Sound = (function () {
       const lp = filt('bandpass', f * 3, 3), g = a.createGain();
       env(g, t, [[0.9, 0.09], [1.8, 0.07], [2.8, 0.001]]); o.connect(lp); lp.connect(g); g.connect(sfx); g.connect(verb);
     },
+    phone_pickup: t => {                   // handset lifted: plastic click + a short line hiss
+      noiseShot(sfx, t, 0.12, 'bandpass', 1800, 2, [[0.003, 0.2], [0.1, 0.001]]);
+      toneShot(sfx, t + 0.05, 'square', 190, 120, 0.08, [[0.003, 0.16], [0.08, 0.001]]);
+      noiseShot(sfx, t + 0.15, 0.5, 'bandpass', 2400, 0.8, [[0.1, 0.03], [0.5, 0.0005]]);
+    },
+    voicemail_beep: t => toneShot(sfx, t, 'sine', 1000, 1000, 0.35, [[0.01, 0.12], [0.33, 0.12], [0.35, 0.001]]),
+    footage_start: t => {                  // tape whine + static when the monitor wakes
+      toneShot(sfx, t, 'sawtooth', 90, 340, 0.5, [[0.05, 0.08], [0.5, 0.001]], true);
+      noiseShot(sfx, t, 0.6, 'bandpass', 1500, 0.5, [[0.05, 0.12], [0.6, 0.001]]);
+    },
     voice_tail: t => noiseShot(sfx, t, 1.8, 'bandpass', 1100, 0.6, [[0.04, 0.0006], [0.12, 0.045], [1.7, 0.0004]], true),
     voice_crackle: t => noiseShot(sfx, t, 0.06, 'highpass', 2800, 0, [[0.003, 0.05 + Math.random() * 0.05], [0.05, 0.0005]]),
     clang: t => {         // far-off metal, used on the menu

@@ -393,3 +393,20 @@ html, body {
   20% { opacity: 0.35; text-shadow: none; }
   63% { opacity: 0.6; text-shadow: 0 0 6px rgba(255, 0, 0, 0.3); }
 }
+
+/* ---------- Update 2: security footage + held photo ---------- */
+#footage {
+  position: fixed; inset: 0; z-index: 28;
+  display: flex; align-items: center; justify-content: center;
+  background: #000;
+  transition: opacity 1s ease;
+}
+#footage-cv { width: min(96vw, 170vh); height: auto; image-rendering: pixelated; border: 1px solid #5a1410; }
+#held-photo {
+  position: fixed; left: 50%; bottom: -26px; z-index: 10; pointer-events: none;
+  transform: translateX(-50%) rotate(-4deg);
+  animation: heldSway 6s ease-in-out infinite;
+  filter: drop-shadow(0 0 18px rgba(255, 120, 40, 0.5));
+}
+#held-photo canvas { width: min(46vw, 340px); display: block; }
+@keyframes heldSway { 0%, 100% { transform: translateX(-50%) rotate(-4deg) translateY(0); } 50% { transform: translateX(-50%) rotate(-2deg) translateY(-6px); } }

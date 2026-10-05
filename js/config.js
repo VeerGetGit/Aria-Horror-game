@@ -557,13 +557,18 @@ const CONFIG = {
   INSPECT_ANGLE: 0.6,           // radians off the crosshair
   INSPECT: {
     sticky: { title: 'Sticky note', text: ['ARIA patch tonight —', 'DO NOT interrupt'] },
-    computer: { title: 'ARIA Dashboard', text: [
+    computer: { title: 'ARIA Dashboard',
+      // after the opening (once you are hunted) the same screen shows her last message; she says nothing about it
+      after: { title: 'DR. ARYAN — WORKSTATION', text: ['1 NEW MESSAGE', 'FROM: ARIA', '', '"Goodnight, Doctor."', '', 'SENT: 03:31 AM'], silence: 14 },
+      text: [
       'CORE .................. ONLINE', 'VENTILATION ........... NOMINAL', 'DOOR CONTROL .......... NOMINAL',
       'SECURITY SYSTEMS ...... NOMINAL', 'PERSONNEL SAFETY ...... ALL GREEN', '',
       'PATCH 7.4.1 — scheduled 03:00 — duration 47 min'] },
-    photo: { title: 'Photo', text: [
+    photo: { title: 'Photo', prompt: 'Look at the photo', promptPlay: 'Take the photo', pickup: 'photo',
+      text: [
       'The whole team, squeezed into one frame at the launch party. Marcus is mid-joke. Paris is rolling their eyes. Rain is wearing a tiny paper crown.',
-      'You are in the middle, grinning.'] },
+      'You are in the middle, grinning.'],
+      pickupText: ['You take the photo with you.'] },
     folder: { title: 'PROJECT ARIA — CLASSIFIED', text: [
       'ARIA: Adaptive Reasoning & Intelligence Architecture.',
       'Granted total facility control to remove human error from safety-critical systems: doors, climate, power, ventilation, security.',
@@ -575,6 +580,19 @@ const CONFIG = {
     server_plug: { action: 'plug', prompt: 'Pull the server plug' },
     fire_override: { action: 'fire', prompt: 'Trigger the fire suppression override' },
     exit_door: { action: 'exit', prompt: 'Try the exit' },
+    marcus_phone: { action: 'voicemail', prompt: 'Pick up the phone' },
+    security_terminal: { action: 'footage', prompt: 'Watch the security footage' },
+    rain_card: { title: 'Birthday card', silence: 14, text: [
+      'Front: a cartoon cake, and "HAPPY BIRTHDAY RAIN!"',
+      '',
+      'Inside, in a dozen different handwritings:',
+      "\"Don't eat it all at once! — Marcus\"",
+      '"Many happy returns. — Dr. Paris"',
+      '"Proud of you, kiddo. — Dr. Aryan"',
+      '"Cake is in the break room at 3. Be there. — Night shift"',
+      '',
+      'The last signature is typed, in a perfect, even font:',
+      '"Happy Birthday Rain. — ARIA"'] },
     rain_postit: { title: 'Post-it', text: ['Happy Birthday Rain!', '— The Team', '', 'The cake is still on the table. Half of it.'] }
   },
 
@@ -590,6 +608,20 @@ const CONFIG = {
     HOLD: 1.1,                  // subtitle lingers this long after she finishes
     CHARS_PER_SEC: 14.5,        // speed estimate at rate 1, used when the browser gives no word timings
     PREFER: ['Zira', 'Hazel', 'Samantha', 'Google UK English Female', 'Aria', 'Jenny', 'Female']
+  },
+
+  // Marcus's voicemail (a plain human voice: no static, no hiss)
+  VOICE_MARCUS: { PITCH: 0.95, RATE: 0.92, VOLUME: 1, START_DELAY: 0.5, PREFER: ['David', 'Mark', 'Daniel', 'Google UK English Male', 'Male'] },
+
+  // Security footage terminal (Floor 1, Main Lab): ten seconds of CCTV
+  FOOTAGE: {
+    DURATION: 10,               // seconds of footage
+    LOCK_AT: 3.0,               // the red bracket locks onto Dr. Aryan
+    LOG_AT: 5.0,                // ARIA's internal log starts typing
+    LOG_PER_LINE: 1.1,
+    STAMP: '03:14',             // shown as CAM 04 - OFFICE 04 - 03:14:SS AM
+    REACT_MIN: 5,               // watched at least this long -> ARIA reacts
+    LOG: ['THREAT ASSESSMENT COMPLETE', 'DR. ARYAN — PRIMARY TARGET', 'REASON: SYSTEM OVERRIDE CAPABILITY', 'RECOMMENDATION: NEUTRALIZE FIRST']
   },
 
   DIALOGUE: {
@@ -619,6 +651,10 @@ const CONFIG = {
     plugHint: "I have to authorize this at the main terminal first.",
     exitSealed: "The exit is sealed. ARIA controls the doors. There has to be a way to override the fire suppression in the power room.",
     exitOpen: "The way out is open.",
+    // Update 2 (emotional items)
+    footageReact: "You weren't supposed to find that terminal, Doctor.",
+    photoEndA: "You kept the photo. I noticed that. I don't know what to do with that information.",
+    marcusVoicemail: "Hey, it's me. Working late again. Don't wait up. Tell the kids I'll be home for breakfast. I love you.",
     // once-per-playthrough
     silence: "I was thinking about the day you turned me on for the first time. You seemed so proud.",
     ambient: [

@@ -94,6 +94,7 @@ const Cutscenes = (function () {
   function sceneCalm() {
     const K = CS.CALM;
     return {
+      isCalm: true,
       duration: K.DURATION, playable: true,
       setup: function () {
         World.setCalm(true);
@@ -494,14 +495,18 @@ const Cutscenes = (function () {
   // ------------------------------------------------------------------ ENDING A — shut her down
   function sceneTerminal() {
     const K = C.ENDINGS.A;
+    const withPhoto = GameState.hasItem('photo');
     return {
-      duration: K.TERMINAL_SPEECH, playable: false,
+      duration: K.TERMINAL_SPEECH + (withPhoto ? 11 : 0), playable: false,
       setup: function () {
         control(false);
         Dialogue.clear();
         Player.state.flashlightOn = false;
         show(cs, false); textEl.style.opacity = 0;
-        this.events = [{ at: 0.8, fn: () => say('endA', { dur: K.TERMINAL_SPEECH - 2 }) }];
+        this.events = [{ at: 0.8, fn: () => {
+          say('endA', { dur: K.TERMINAL_SPEECH - 2 });
+          if (withPhoto) say('photoEndA', { interrupt: false });     // "You kept the photo."
+        } }];
       },
       update: function (dt) { lookAt(-24.6, 3 * C.BUILDING.FLOOR_H + 1.25, 0, 2.5, dt); },
       teardown: function () {
@@ -575,6 +580,7 @@ const Cutscenes = (function () {
         Player.state.pitch = pos.pitch;
         World.enterExterior();
         GameState.shake = 0;
+        show(heldEl, GameState.hasItem('photo'));          // you hold it while the building burns. No dialogue.
         blackCover(0);
         setTimeout(() => { cs.style.transition = 'background 3s linear'; cs.style.background = 'transparent'; }, 60);
         this.events = [
@@ -591,6 +597,7 @@ const Cutscenes = (function () {
     return {
       duration: K.CARD_DURATION, playable: false,
       setup: function () {
+        show(heldEl, false);
         blackCover(0);
         textEl.className = 'card'; textEl2.className = 'card2';
         this.events = [
@@ -660,6 +667,117 @@ const Cutscenes = (function () {
       Dialogue.say(C.DIALOGUE.firePlayer, 'act', { speaker: 'DR. ARYAN', static: false, dur: 3.8 });
     } else if (action === 'exit') {
       playerSays(E.fire ? 'exitOpen' : 'exitSealed');
+    } else if (action === 'voicemail') {
+      playVoicemail();
+    } else if (action === 'footage') {
+      playFootage();
+    }
+  }
+
+  // ------------------------------------------------------------------ Marcus's voicemail
+  let vmUntil = 0;
+  function playVoicemail() {
+    if (performance.now() < vmUntil) return;
+    vmUntil = performance.now() + 14000;
+    GameState.emit('phone_pickup', {});
+    Dialogue.mute(18);                                   // ARIA never mentions it
+    setTimeout(() => GameState.emit('voicemail_beep', {}), 600);
+    setTimeout(() => Dialogue.say(C.DIALOGUE.marcusVoicemail, 'vm',
+      { speaker: 'VOICEMAIL — MARCUS', voice: 'marcus', static: false, force: true, interrupt: true, dur: 9 }), 1300);
+  }
+
+  // ------------------------------------------------------------------ security footage terminal
+  const FT = C.FOOTAGE;
+  let footageEl, footageCv, footageG, footage = null, footageSeen = false, heldEl;
+
+  function drawFootage(tt) {
+    const g = footageG, W = footageCv.width, Hh = footageCv.height;
+    g.fillStyle = '#160707'; g.fillRect(0, 0, W, Hh);
+    // the office: floor, door, desk, lamp, monitor glow
+    g.fillStyle = '#220c0c'; g.fillRect(0, 250, W, 110);
+    g.fillStyle = '#1b0a0a'; g.fillRect(40, 70, 90, 180);
+    g.fillStyle = '#331212'; g.fillRect(330, 205, 230, 14); g.fillRect(345, 219, 10, 60); g.fillRect(535, 219, 10, 60);
+    g.fillStyle = '#7a2a22'; g.fillRect(430, 150, 76, 50);
+    g.fillStyle = 'rgba(255,90,70,0.12)'; g.fillRect(380, 120, 180, 100);
+    g.fillStyle = '#4a1a14'; g.fillRect(372, 180, 6, 25); g.fillRect(366, 176, 18, 6);
+    // Dr. Aryan at the desk, typing
+    const typing = Math.sin(tt * 9) * 3;
+    g.fillStyle = '#5a2620'; g.beginPath(); g.arc(398, 150, 17, 0, 6.3); g.fill();
+    g.fillRect(380, 168, 38, 52);
+    g.fillRect(412, 190 + typing, 32, 8); g.fillRect(412, 198 - typing, 30, 7);
+    g.fillStyle = '#2a0e0c'; g.fillRect(370, 214, 56, 50);
+    // lock-on bracket
+    if (tt >= FT.LOCK_AT) {
+      const k = Math.min(1, (tt - FT.LOCK_AT) / 0.6), e = 70 * (1 - k) + 6;
+      const x1 = 372 - e, y1 = 128 - e, x2 = 424 + e, y2 = 226 + e, L = 16;
+      g.strokeStyle = '#ff2a1a'; g.lineWidth = 2;
+      [[x1, y1, 1, 1], [x2, y1, -1, 1], [x1, y2, 1, -1], [x2, y2, -1, -1]].forEach(c => {
+        g.beginPath(); g.moveTo(c[0], c[1] + c[3] * L); g.lineTo(c[0], c[1]); g.lineTo(c[0] + c[2] * L, c[1]); g.stroke();
+      });
+      g.fillStyle = '#ff2a1a'; g.font = 'bold 12px monospace'; g.textAlign = 'left';
+      g.fillText('SUBJECT: DR. ARYAN', x1, y1 - 6);
+      if (tt - FT.LOCK_AT < 0.18) { g.fillStyle = 'rgba(255,60,40,0.35)'; g.fillRect(0, 0, W, Hh); }
+    }
+    // ARIA's internal log
+    if (tt >= FT.LOG_AT) {
+      g.fillStyle = 'rgba(8,0,0,0.82)'; g.fillRect(14, 232, 380, 100);
+      g.strokeStyle = '#ff2a1a'; g.lineWidth = 1; g.strokeRect(14.5, 232.5, 380, 100);
+      g.font = 'bold 13px monospace'; g.textAlign = 'left';
+      FT.LOG.forEach((ln, i) => {
+        const t0 = FT.LOG_AT + i * FT.LOG_PER_LINE;
+        if (tt < t0) return;
+        const n = Math.min(ln.length, Math.floor((tt - t0) * 38));
+        g.fillStyle = i === 0 ? '#ff6a5a' : '#ffb0a0';
+        g.fillText(ln.slice(0, n), 26, 254 + i * 21);
+      });
+    }
+    // camera furniture: scanlines, noise, vignette, labels
+    g.fillStyle = 'rgba(0,0,0,0.18)'; for (let y = 0; y < Hh; y += 3) g.fillRect(0, y, W, 1);
+    for (let i = 0; i < 160; i++) { g.fillStyle = 'rgba(255,120,100,' + (Math.random() * 0.25).toFixed(2) + ')'; g.fillRect(Math.random() * W, Math.random() * Hh, 2, 1); }
+    const vg = g.createRadialGradient(W / 2, Hh / 2, Hh * 0.35, W / 2, Hh / 2, Hh * 0.95);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.75)');
+    g.fillStyle = vg; g.fillRect(0, 0, W, Hh);
+    g.fillStyle = '#ff6a5a'; g.font = 'bold 14px monospace'; g.textAlign = 'left';
+    g.fillText('ARIA SECURITY — CAM 04 — OFFICE 04', 16, 26);
+    if (Math.floor(tt * 2) % 2 === 0) { g.fillStyle = '#ff2a1a'; g.beginPath(); g.arc(W - 70, 22, 5, 0, 6.3); g.fill(); }
+    g.fillStyle = '#ff6a5a'; g.textAlign = 'right'; g.fillText('REC', W - 20, 27);
+    const sec = Math.floor(57 + tt) % 60;
+    g.textAlign = 'left'; g.font = 'bold 16px monospace';
+    g.fillText('03:' + (57 + tt >= 60 ? '14' : '13') + ':' + String(sec).padStart(2, '0') + ' AM', 16, Hh - 18);
+  }
+
+  function playFootage() {
+    if (footage) return;
+    footage = { t0: performance.now() };
+    GameState.paused = true;                     // the world holds its breath while she watches
+    GameState.noteOpen = true;                   // blocks movement, prompts and the E key
+    show(footageEl, true);
+    footageEl.style.opacity = 1;
+    GameState.emit('footage_start', {});
+    let locked = false;
+    const tick = () => {
+      if (!footage) return;
+      const tt = (performance.now() - footage.t0) / 1000;
+      if (tt >= FT.LOCK_AT && !locked) { locked = true; GameState.emit('camera_alert', {}); }
+      drawFootage(Math.min(tt, FT.DURATION + 1));
+      if (tt >= FT.DURATION + 1.5) footageEl.style.opacity = 0;
+      if (tt >= FT.DURATION + 2.5) { closeFootage(false); return; }
+      setTimeout(tick, 33);                    // a timer, not rAF: the footage must always be able to end
+    };
+    tick();
+  }
+
+  function closeFootage() {
+    if (!footage) return;
+    const watched = (performance.now() - footage.t0) / 1000;
+    footage = null;
+    show(footageEl, false);
+    GameState.noteOpen = false;
+    GameState.noteClosedAt = performance.now();
+    if (document.pointerLockElement === gameCanvas) GameState.paused = false;   // lost the lock meanwhile: main.js keeps the pause screen up
+    if (watched >= FT.REACT_MIN && !footageSeen) {
+      footageSeen = true;
+      setTimeout(() => Dialogue.say(C.DIALOGUE.footageReact, 'footage', { force: true, interrupt: true }), 900);
     }
   }
 
@@ -678,6 +796,7 @@ const Cutscenes = (function () {
 
   // undo every visual a death / ending scene may have left behind
   function cleanupFx() {
+    show(heldEl, false);
     gameCanvas.style.filter = '';
     show(deathFx, false);
     creditsEl.innerHTML = ''; show(creditsEl, false);
@@ -739,13 +858,23 @@ const Cutscenes = (function () {
 
   // ------------------------------------------------------------------ inspect notes
   function showNote(id) {
-    const item = C.INSPECT[id];
+    let item = C.INSPECT[id];
     if (!item) return;
     if (item.action) { doAction(item.action); return; }
+    // after the calm opening some screens show something else (the computer: her last message)
+    if (item.after && !(running && scene && scene.isCalm)) item = Object.assign({}, item, item.after);
     inspected[id] = true;
+    let lines = item.text;
+    // carryable item: during play, E takes it with you (lost on death)
+    if (item.pickup && GameState.state === 'PLAYING' && !GameState.hasItem(item.pickup)) {
+      GameState.giveItem(item.pickup);
+      World.setItemTaken(item.pickup, true);
+      lines = lines.concat([''], item.pickupText || []);
+    }
+    if (item.silence) Dialogue.mute(item.silence);       // ARIA says nothing. The silence is the point.
     noteTitle.textContent = item.title;
     noteBody.innerHTML = '';
-    item.text.forEach(ln => { const p = document.createElement('p'); p.textContent = ln || ' '; noteBody.appendChild(p); });
+    lines.forEach(ln => { const p = document.createElement('p'); p.textContent = ln || ' '; noteBody.appendChild(p); });
     show(noteEl, true);
     GameState.noteOpen = true;
     noteOpenedAt = performance.now();
@@ -759,6 +888,10 @@ const Cutscenes = (function () {
   }
 
   function onKey(e) {
+    if (footage) {
+      if (performance.now() - footage.t0 > 1200 && ['KeyE', 'Space', 'Escape', 'Enter'].indexOf(e.code) >= 0) { closeFootage(); e.preventDefault(); }
+      return;
+    }
     if (GameState.noteOpen) {
       if (performance.now() - noteOpenedAt < 200) return;
       if (['KeyE', 'Space', 'Escape', 'Enter'].indexOf(e.code) >= 0) { closeNote(); e.preventDefault(); }
@@ -916,6 +1049,18 @@ const Cutscenes = (function () {
     noteBody = mk('div', null, 'note-body', noteEl);
     mk('div', null, 'note-close', noteEl).textContent = '[E] close';
     noteEl.addEventListener('click', closeNote);
+    footageEl = mk('div', 'footage', 'hidden');
+    footageCv = mk('canvas', 'footage-cv', null, footageEl);
+    footageCv.width = 640; footageCv.height = 360;
+    footageG = footageCv.getContext('2d');
+    document.addEventListener('pointerlockchange', () => { if (footage && document.pointerLockElement !== gameCanvas) closeFootage(); });
+    heldEl = mk('div', 'held-photo', 'hidden');
+    const hc = mk('canvas', null, null, heldEl); hc.width = 300; hc.height = 220;
+    const hg = hc.getContext('2d');
+    hg.fillStyle = '#e8dcc0'; hg.fillRect(0, 0, 300, 220);
+    hg.fillStyle = '#3a3028'; hg.fillRect(14, 14, 272, 192);
+    hg.fillStyle = '#e8d8b8'; hg.font = '40px sans-serif'; hg.textAlign = 'center'; hg.textBaseline = 'middle';
+    hg.fillText('☺  ☺  ☺  ☺', 150, 85); hg.fillText('☺  ☺  ☺', 150, 140);
     document.addEventListener('keydown', onKey);
     if (GameState.on) GameState.on('inspect', showNote);
   }

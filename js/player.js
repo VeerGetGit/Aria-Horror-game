@@ -225,7 +225,7 @@ const Player = (function () {
     const vx = -Math.sin(S.yaw) * cp, vy = Math.sin(S.pitch), vz = -Math.cos(S.yaw) * cp;
     let best = null, ba = C.INSPECT_ANGLE;
     World.interactables.forEach(it => {
-      if (it.floor !== S.floor || !C.INSPECT[it.id]) return;
+      if (it.floor !== S.floor || it.disabled || !C.INSPECT[it.id]) return;
       const dx = it.x - ex, dy = it.floor * H + it.y - ey, dz = it.z - ez;
       const d = Math.hypot(dx, dy, dz);
       if (d > C.INSPECT_RADIUS) return;
@@ -356,7 +356,7 @@ const Player = (function () {
     const hs = S.hiding ? null : nearestHide();
     const ins = nearestInspect();
     const hunted = (GameState.threat || 0) > 0.25;
-    S.prompt = GameState.noteOpen ? '' : S.hiding ? '[E] Leave hiding spot' : (ins && !(hs && hunted)) ? '[E] ' + (C.INSPECT[ins.id].prompt || 'Inspect') : hs ? '[E] Hide' : p ? '[E] ' + p.label + (p.down ? ' (down)' : ' (up)') : '';
+    S.prompt = GameState.noteOpen ? '' : S.hiding ? '[E] Leave hiding spot' : (ins && !(hs && hunted)) ? '[E] ' + ((GameState.state === 'PLAYING' && C.INSPECT[ins.id].promptPlay) || C.INSPECT[ins.id].prompt || 'Inspect') : hs ? '[E] Hide' : p ? '[E] ' + p.label + (p.down ? ' (down)' : ' (up)') : '';
     S.room = World.roomAt(S.floor, S.x, S.z);
 
     Object.assign(GameState.player, S);

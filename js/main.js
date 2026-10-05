@@ -26,6 +26,10 @@ const GameState = {
   modules: {},              // later stages register themselves here
   threat: 0,                // 0..1, written by Aria, read by Hud / Sound
   cutsceneControl: false,   // true during the playable opening scenes (2 and 6)
+  items: {},                // carried key items by id (lost on death): photo, ...
+  hasItem: function (id) { return !!this.items[id]; },
+  giveItem: function (id) { this.items[id] = true; this.emit('item_pickup', id); },
+  clearItems: function () { Object.keys(this.items).forEach(k => { delete this.items[k]; }); World.setItemTaken('photo', false); },
   noteOpen: false,          // an inspect note is on screen
   noteClosedAt: -1e9,
   shake: 0, shakeHold: false,
@@ -73,6 +77,7 @@ const Main = (function () {
   };
 
   function respawn() {
+    GameState.clearItems();                    // everything you carried is lost
     const cp = GameState.checkpoint || C.PLAYER.SPAWN;
     Player.teleport(cp.floor, cp.x, cp.z, cp.yaw);
     Player.state.pitch = 0;

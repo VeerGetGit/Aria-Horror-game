@@ -36,7 +36,16 @@ const Dialogue = (function () {
   // ------------------------------------------------------------------ voice (browser text-to-speech)
   const V = C.VOICE;
   const synth = (typeof window !== 'undefined' && window.speechSynthesis && window.SpeechSynthesisUtterance) ? window.speechSynthesis : null;
-  let voice = null, speechPaused = false;
+  let voice = null, voiceMarcus = null, speechPaused = false, bedActive = false;
+
+  function pickFrom(pool, prefer, avoid) {
+    let best = null;
+    for (let i = 0; i < prefer.length && !best; i++) {
+      const key = prefer[i].toLowerCase();
+      best = pool.filter(v => v !== avoid && v.name.toLowerCase().indexOf(key) >= 0).sort((x, y) => (y.localService ? 1 : 0) - (x.localService ? 1 : 0))[0];
+    }
+    return best || pool.filter(v => v !== avoid && v.localService)[0] || pool.filter(v => v !== avoid)[0] || pool[0];
+  }
 
   function pickVoice() {
     if (!synth) return;
@@ -44,16 +53,15 @@ const Dialogue = (function () {
     if (!list.length) return;
     const en = list.filter(v => /^en([-_]|$)/i.test(v.lang));
     const pool = en.length ? en : list;
-    let best = null;
-    for (let i = 0; i < V.PREFER.length && !best; i++) {
-      const key = V.PREFER[i].toLowerCase();
-      best = pool.filter(v => v.name.toLowerCase().indexOf(key) >= 0).sort((x, y) => (y.localService ? 1 : 0) - (x.localService ? 1 : 0))[0];
-    }
-    voice = best || pool.filter(v => v.localService)[0] || pool[0];
+    voice = pickFrom(pool, V.PREFER, null);
+    voiceMarcus = pickFrom(pool, C.VOICE_MARCUS.PREFER, voice);     // a different voice from ARIA's
   }
 
   const voiceOn = () => !!(V && V.ENABLED && synth);
-  function bed(on) { if (typeof Sound !== 'undefined') Sound.voiceBed(on); }
+  function bed(on) {
+    if (typeof Sound === 'undefined' || bedActive === on) return;
+    bedActive = on; Sound.voiceBed(on);
+  }
   function cancelSpeech() {
     if (!synth) return;
     speechPaused = false;
@@ -67,9 +75,11 @@ const Dialogue = (function () {
     item.sp = 'live'; item.sT = 0; item.lastWord = text.lastIndexOf(' ') + 1;
     const u = new SpeechSynthesisUtterance(text);
     if (voice) { u.voice = voice; u.lang = voice.lang; }
-    u.pitch = V.PITCH; u.rate = V.RATE;
-    u.volume = (typeof Sound !== 'undefined' && Sound.isMuted()) ? 0 : V.VOLUME;
-    u.onstart = function () { item.live = true; bed(true); };
+    const VC = item.vcfg || V;
+    if (item.vname === 'marcus' && voiceMarcus) { u.voice = voiceMarcus; u.lang = voiceMarcus.lang; }
+    u.pitch = VC.PITCH; u.rate = VC.RATE;
+    u.volume = (typeof Sound !== 'undefined' && Sound.isMuted()) ? 0 : VC.VOLUME;
+    u.onstart = function () { item.live = true; if (item.aria) bed(true); };
     u.onboundary = function (e) {
       if (e.name && e.name !== 'word') return;
       item.bSeen = true;
@@ -276,7 +286,9 @@ const Dialogue = (function () {
       dur: opts.dur || (opts.cutoff ? text.length / 70 + 0.45 : Math.max(2.6, text.length * 0.055 + 1.4)),
       t: 0, shown: 0
     };
-    item.voiced = item.aria && voiceOn();
+    item.vname = opts.voice || null;
+    item.vcfg = opts.voice === 'marcus' ? C.VOICE_MARCUS : V;
+    item.voiced = voiceOn() && (item.aria || !!opts.voice);
     item.sp = 'idle'; item.sT = 0; item.bIdx = 0;
     if (PRIORITY[key] || opts.interrupt) { queue = []; if (cur) cancelSpeech(); cur = null; }
     else if (queue.length >= 3) return false;
@@ -311,17 +323,18 @@ const Dialogue = (function () {
   function updateVoiced(dt) {
     cur.t += dt;
     if (cur.t > 0.35) box.classList.remove('crackle');
-    if (cur.sp === 'idle' && cur.t >= V.START_DELAY) startSpeech(cur);
+    const VC = cur.vcfg || V;
+    if (cur.sp === 'idle' && cur.t >= VC.START_DELAY) startSpeech(cur);
     const len = cur.text.length;
     let want = 0;
     if (cur.sp === 'live') {
       cur.sT += dt;
       if (cur.bSeen) want = cur.bIdx;
-      else want = Math.floor(cur.sT * V.CHARS_PER_SEC * V.RATE);            // no word timings: estimate her pace
-      if (cur.cutoff && !cur.bSeen && cur.cutT === undefined && cur.sT >= len / (V.CHARS_PER_SEC * V.RATE) * 0.9) cur.cutT = 0;   // no word timings: cut by estimate
+      else want = Math.floor(cur.sT * V.CHARS_PER_SEC * VC.RATE);            // no word timings: estimate her pace
+      if (cur.cutoff && !cur.bSeen && cur.cutT === undefined && cur.sT >= len / (V.CHARS_PER_SEC * VC.RATE) * 0.9) cur.cutT = 0;   // no word timings: cut by estimate
       if (cur.cutT !== undefined) { cur.cutT -= dt; if (cur.cutT <= 0) { cancelSpeech(); cur.sp = 'done'; cur.doneT = 0; } }
       // speech never started or never ended (blocked / broken voice): fall back to the subtitle alone
-      if ((!cur.live && cur.sT > 4) || cur.sT > len / (V.CHARS_PER_SEC * V.RATE) * 2 + 12) { cancelSpeech(); cur.sp = 'done'; cur.doneT = 0; }
+      if ((!cur.live && cur.sT > 4) || cur.sT > len / (V.CHARS_PER_SEC * VC.RATE) * 2 + 12) { cancelSpeech(); cur.sp = 'done'; cur.doneT = 0; }
     } else if (cur.sp === 'done') {
       cur.doneT += dt;
       want = cur.cutoff ? (cur.bIdx || len) : len;

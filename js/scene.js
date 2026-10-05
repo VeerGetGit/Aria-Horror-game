@@ -43,7 +43,7 @@ const World = (function () {
   const roomsByFloor = {};
   const lampFixtures = [];
   const vitalsPanels = [];  // canvas wall screens that show the player's vitals (Stage 3)
-  const calmObjs = { gore: [], blind: null };
+  const calmObjs = { gore: [], blind: null, items: {} };   // items: carryable meshes by id (photo)
   let tagList = null;       // when set, decals created are collected here
   const fire = { on: false, t: 0, sprites: [] };                       // Ending B: the ground floor burns
   const ext = { group: null, active: false, t: 0, windows: [], flames: [], lights: [] };   // Ending B: the view from outside
@@ -723,6 +723,7 @@ const World = (function () {
       textPlane(f, -24.45, 1.12, -3.86, 0.16, 0.16, ['ARIA', 'patch', 'tonight', 'DO NOT', 'interrupt'], 'n', { bg: '#e8e08a', size: 22, px: 128 });
       const pf = textPlane(f, -21.9, 0.98, -3.75, 0.3, 0.22, ['☺ ☺ ☺ ☺', ' ☺ ☺ ☺ '], 'n', { bg: '#3a3028', color: '#e8d8b8', size: 30, border: '#8a7a5a', px: 256 });
       pf.rotation.x = -0.12;
+      calmObjs.items.photo = pf;
       pbox(f, -22.3, -3.3, 0.32, 0.03, 0.24, mats.fabricRed, { y: 0.78, collide: false });
       textPlane(f, -22.3, 0.815, -3.3, 0.28, 0.2, ['PROJECT ARIA', 'CLASSIFIED'], 'up', { bg: '#7a1a14', color: '#f0e0d0', size: 22, px: 256 });
       shelf(f, -18.55, 0, 0.5, 3.0, 2.2, 5, mats.woodLight);
@@ -771,6 +772,10 @@ const World = (function () {
       handprint(f, -7.9, 1.0, 5.98, 's');
       handprint(f, -6.5, 1.4, 5.98, 's', 0.24);
       shelf(f, -9.6, -2, 0.5, 2.4, 2.0, 4, mats.woodLight);
+      // Marcus's phone on his desk (E: listen to the voicemail)
+      pbox(f, -5.2, 3.5, 0.2, 0.05, 0.3, mats.dark, { y: 0.78, collide: false });
+      pbox(f, -5.2, 3.5, 0.07, 0.035, 0.26, mats.metalDark, { y: 0.83, collide: false, rotY: 0.15 });
+      interactables.push({ id: 'marcus_phone', floor: f, x: -5.2, y: 0.85, z: 3.5 });
     },
 
     meeting: function (f, r) {
@@ -902,6 +907,10 @@ const World = (function () {
       }
       pbox(f, -25.88, 0, 0.08, 1.2, 3.4, lambert(0xd0d0cc), { y: 1.0, collide: false });
       textPlane(f, -25.8, 1.7, 0, 3.2, 1.0, ['SHE KNOWS'], 'e', { bg: '#d9d9d2', color: '#a30c0c', size: 80, px: 1024, family: 'Brush Script MT, cursive', font: 'bold italic' });
+      // security footage terminal (E: watch the footage)
+      desk(f, -8, 5.0, 2.0, 0.8);
+      monitor(f, -8, 5.25, 's', { color: 0xff4a3a, mode: 'flicker' });
+      interactables.push({ id: 'security_terminal', floor: f, x: -8, y: 1.15, z: 5.2 });
       body(f, -13.4, -4.6, 1.8, 'lying');
       body(f, -24.6, 5.0, 0.2, 'slumped');
       handprint(f, -25.85, 1.0, 3.5, 'e'); handprint(f, -25.85, 1.6, 3.6, 'e', 0.24);
@@ -934,6 +943,9 @@ const World = (function () {
       addBox(groups[f], mats.cakeInner, 20.98, f * H + 0.81, 0.5, 21.26, f * H + 0.95, 0.76);
       textPlane(f, 21.8, 0.815, 0.95, 0.3, 0.2, ['Happy Birthday', 'Rain!', '— The Team'], 'up', { bg: '#f2e65c', color: '#2a2a2a', size: 22, px: 256, rotZ: -0.3 });
       interactables.push({ id: 'rain_postit', floor: f, x: 21.8, y: 0.82, z: 0.95 });
+      // Rain's birthday card, next to the cake
+      textPlane(f, 20.1, 0.765, 0.85, 0.2, 0.27, ['HAPPY', 'BIRTH-', 'DAY', 'RAIN!'], 'up', { bg: '#f1c9d8', color: '#b02a5a', size: 30, px: 128, rotZ: 0.25 });
+      interactables.push({ id: 'rain_card', floor: f, x: 20.1, y: 0.78, z: 0.85 });
       // fridge with a child's drawing
       pbox(f, 25.2, 3.5, 1.2, 1.9, 0.9, mats.white);
       const dr = textPlane(f, 24.58, 1.3, 3.5, 0.4, 0.5, ['  \\o/   ', ' ♥  |  ☼', ' / \\ /\\', 'to Mommy'], 'w', { bg: '#f4f0e0', color: '#2a5ad0', size: 22, px: 256, family: 'Comic Sans MS, cursive' });
@@ -1362,6 +1374,11 @@ const World = (function () {
     setLampMode: setLampMode,
     setCalm: setCalm,
     blackout: blackout,
+    // carryable items: hide / show the mesh and its prompt
+    setItemTaken: function (id, taken) {
+      const m = calmObjs.items[id]; if (m) m.visible = !taken;
+      interactables.forEach(it => { if (it.id === id) it.disabled = !!taken; });
+    },
     startFire: startFire,
     enterExterior: enterExterior,
     get fireOn() { return fire.on; },
