@@ -268,6 +268,7 @@ const Dialogue = (function () {
     queue = [];
     cur = null;
     cancelSpeech();
+    dim(false);
     if (box) box.classList.remove('show');
   }
 
@@ -297,9 +298,17 @@ const Dialogue = (function () {
     return true;
   }
 
+  // Every intercom use: the lights in the room dim, half a second later the static crackles.
+  function dim(on) { if (typeof World !== 'undefined' && World.setDim) World.setDim(on); }
+
   function startNext() {
     cur = queue.shift();
     if (!cur) { box.classList.remove('show'); return; }
+    if (cur.aria) { cur.pre = C.LIGHTING.DIM_LEAD; dim(true); box.classList.remove('show'); return; }
+    showCur();
+  }
+
+  function showCur() {
     speakerEl.textContent = cur.speaker === 'ARIA' ? 'ARIA' : cur.speaker;
     box.className = 'show ' + (cur.speaker === 'ARIA' ? 'aria' : 'you');
     lineEl.textContent = '';
@@ -317,7 +326,7 @@ const Dialogue = (function () {
 
   function endLine() {
     if (cur && cur.cutoff) { staticT = 0.9; fx('intercom_static'); }
-    cur = null; if (queue.length) startNext(); else box.classList.remove('show');
+    cur = null; if (queue.length) startNext(); else { box.classList.remove('show'); dim(false); }
   }
 
   // A spoken line: the subtitle follows her voice, and the line lasts as long as she speaks.
@@ -355,7 +364,8 @@ const Dialogue = (function () {
     if (dt > 0) {
       if (staticT > 0) { staticT = Math.max(0, staticT - dt); drawStatic(); }
       if (!cur && queue.length) startNext();
-      if (cur && cur.voiced) updateVoiced(dt);
+      if (cur && cur.pre > 0) { cur.pre -= dt; if (cur.pre <= 0) { cur.pre = 0; showCur(); } }
+      else if (cur && cur.voiced) updateVoiced(dt);
       else if (cur) {
         cur.t += dt;
         // typewriter: each line reveals quickly, then holds

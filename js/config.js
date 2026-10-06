@@ -133,6 +133,8 @@ const CONFIG = {
     LAMP_COLOR_CALM: 0xffc680,
     LAMP_INTENSITY: 1.5,
     LAMP_DISTANCE: 7,
+    PULSE_PERIOD: 8, PULSE_LEN: 1.8, PULSE_GAIN: 0.6,        // the red emergency lights breathe every 8 s (Update 6)
+    DIM_AMOUNT: 0.55, DIM_RADIUS: 14, DIM_LEAD: 0.5,          // lights dim in the room half a second before she speaks
     FLICKER_ON_TIME: [0.4, 3.0],
     FLICKER_OFF_TIME: [0.04, 0.28],
     FLICKER_OFF_LEVEL: 0.06,
@@ -202,7 +204,7 @@ const CONFIG = {
         { id: 'meeting', name: 'Meeting Room', type: 'meeting', x1: SX, x2: 14, z1: -SZ, z2: SZ,
           doors: [{ side: 'n', at: 9 }] },
         { id: 'storage', name: 'Storage', type: 'storage', x1: 14, x2: 26, z1: -SZ, z2: SZ,
-          doors: [{ side: 'n', at: 20 }] },
+          doors: [{ side: 'n', at: 20, locked: true }] },   // a closed door with a drag mark running under it (Update 6)
         { id: 'workspace', name: 'Open Workspace', type: 'workspace', x1: -26, x2: -2, z1: 10, z2: 16,
           doors: [{ side: 's', at: -20 }, { side: 's', at: -8 }] },
         { id: 'conference', name: 'Conference Room', type: 'conference', x1: 2, x2: 16, z1: 10, z2: 16,
@@ -560,6 +562,19 @@ const CONFIG = {
   // you are returned to the entrance.
   TUNNEL_LOST_RADIUS: 17,
 
+  // ------------------------------------------------------------------ ENVIRONMENTAL HORROR (Update 6)
+  ENV: {
+    CLOCK_TIME: '03:31',                 // every clock in the building stopped when she gassed you
+    BODY_NEAR: 2.3, BODY_DWELL: 1.2,     // stand this close to a body this long: the nearest light buzzes and dies for the run
+    LIGHT_BUZZ: 1.5,                     // seconds a dying light buzzes
+    RANDOM_DEATHS: [3, 4],               // lights that die at random places each run
+    RANDOM_DEATH_TIME: [90, 700],        // seconds of play before each of them goes
+    RANDOM_DEATH_NEAR: 22,               // ... and only when you are this close, so you notice
+    DRONE_FLICKER: 0.45, DRONE_FLICKER_R: 9,
+    SHADOWS: { PER_FLOOR: 7, AMP: [0.04, 0.09], PERIOD: [9, 22], OPACITY: [0.1, 0.2] },
+    PHONE: { floor: 0, x: 10.2, z: -3.3, RANGE: 16 }          // off the hook, faint hold music
+  },
+
   // ------------------------------------------------------------------ BASEMENT HORROR (Update 5)
   // ARIA is completely silent down here: no intercom, no dialogue at all (dialogue.js enforces it).
   BASEMENT: {
@@ -625,6 +640,9 @@ const CONFIG = {
     // ---- key item pickups (id = item id). noNote: just take it (toast + icon + ARIA's reaction)
     desk_key: { pickup: 'desk_key', noNote: true, prompt: 'Search the vent', crouch: true, crouchPrompt: 'Crouch (C) to reach the vent', crouchToast: 'The grate is too low. Crouch (C).' },
     desk_drawer: { action: 'drawer', prompt: 'Open the drawer' },
+    email_draft: { title: 'Unsent draft — Marcus', text: ['To: Dr. Aryan', 'Subject: ARIA', '', 'ARIA is acting strange, I think', 'we should call Dr. Ar—', '', '[DRAFT — NOT SENT]'] },
+    vent_note: { title: 'Sticky note — your handwriting', text: ['"Don\'t trust the vents."', '', 'Dated six months ago.'] },
+    plant: { title: 'Plant', text: ['A small fern in a clay pot.', '', 'Green. Healthy. The soil is damp.'] },
     welded_door: { title: 'Door B-07', text: ['Welded shut.', '', 'From the inside.'] },
     server_door: { action: 'server_door', prompt: 'Try the server room door' },
     server_vent: { action: 'server_vent', prompt: 'Crawl into the vent', crouch: true, crouchPrompt: 'Crouch (C) to enter the vent', crouchToast: 'The panel is too low. Crouch (C).', noWatch: true, watchToast: 'The drone can see you. Not now.' },

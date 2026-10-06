@@ -114,6 +114,8 @@ const Sound = (function () {
   // The intercom hiss under ARIA's voice (speechSynthesis cannot be routed through
   // Web Audio, so the "radio" colour is layered beneath it instead).
   let bed = null, bedOn = false, crackleT = 0, crawlK = 0;
+  let holdT = 0, holdIdx = 0;
+  const HOLD_TUNE = [392, 494, 587, 494, 440, 523, 659, 523, 392, 494, 587, 784, 698, 587, 523, 440];   // a slow looping 'please hold' tune
   function buildBed() {
     bed = gain(0, amb);
     const bp = filt('bandpass', 1900, 0.9); bp.connect(bed); loopNoise(bp);
@@ -312,6 +314,12 @@ const Sound = (function () {
       toneShot(sfx, t, 'square', 110, 45, 0.5, [[0.01, 0.4], [0.5, 0.001]], true);
       noiseShot(sfx, t, 0.5, 'lowpass', 800, 0, [[0.01, 0.4], [0.5, 0.001]], true);
     },
+    light_buzz: (t, d) => {                    // a dying light: electric buzz and crackle
+      const o = panAt(d.x, d.y, d.z, 2);
+      const b = toneShot(o, t, 'sawtooth', 100, 96, 1.5, [[0.05, 0.1], [1.2, 0.1], [1.5, 0.001]], true);
+      for (let i = 0; i < 9; i++) noiseShot(o, t + i * 0.16, 0.05, 'highpass', 3000, 0, [[0.002, 0.14], [0.05, 0.001]]);
+      toneShot(o, t + 1.5, 'sine', 60, 40, 0.3, [[0.005, 0.2], [0.3, 0.001]]);
+    },
     wall_scratch: (t, d) => {                 // something scratching inside the wall
       const o = panAt(d.x, (GameState.player.y || 0) + 1.1, d.z, 2.5);
       const n = 7 + Math.floor(Math.random() * 9);
@@ -427,6 +435,18 @@ const Sound = (function () {
     ramp(wheelFilter.frequency, (Dd.floor === P.floor ? 380 : 140) + 700 * rolling, 0.2);
 
     if (bedOn) { crackleT -= dt; if (crackleT <= 0) { crackleT = rnd(0.12, 0.7); play('voice_crackle'); } }
+
+    // a phone off the hook on the ground floor: tinny hold music, only when you are near
+    const PH = C.ENV.PHONE, phNear = P.floor === PH.floor ? Math.hypot(P.x - PH.x, P.z - PH.z) : 99;
+    holdT -= dt;
+    if (holdT <= 0 && phNear < PH.RANGE && inGame && !quiet) {
+      holdT = 0.42;
+      const f = HOLD_TUNE[holdIdx++ % HOLD_TUNE.length];
+      const o = panAt(PH.x, PH.floor * H + 0.9, PH.z, 1.5);
+      const lp = filt('lowpass', 1800);
+      toneShot(lp, a.currentTime, 'square', f, f, 0.36, [[0.01, 0.022 * (1 - phNear / PH.RANGE)], [0.34, 0.0005]]);
+      lp.connect(o);
+    }
 
     // timed random events
     if (!inGame || quiet) {

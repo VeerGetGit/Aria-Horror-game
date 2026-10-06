@@ -317,7 +317,7 @@ const World = (function () {
     const fx = {
       floor: o.floor, x: o.x, y: o.y, z: o.z,
       color: o.color, intensity: o.intensity, distance: o.distance,
-      mode: o.mode || 'steady', mult: 1, on: true, next: rr(0, 2),
+      mode: o.mode || 'steady', baseMode: o.mode || 'steady', dying: 0, flickerUntil: 0, mult: 1, on: true, next: rr(0, 2),
       mat: o.mat || null, baseColor: new THREE.Color(o.color), group: o.group || null, suppressed: false
     };
     if (o.visible !== false && !o.mat) {
@@ -340,7 +340,13 @@ const World = (function () {
     return 'steady';
   }
 
+  let curT = 0, dimTarget = 0, dimAmt = 0, dimPos = { floor: 99, x: 0, z: 0 };
+
   function updateFixtures(dt, t) {
+    curT = t;
+    dimAmt += (dimTarget - dimAmt) * Math.min(1, dt * 5);
+    const ph = t % L.PULSE_PERIOD;
+    const pulse = ph < L.PULSE_LEN ? Math.pow(Math.sin(Math.PI * ph / L.PULSE_LEN), 2) : 0;   // the building breathes
     for (let i = 0; i < fixtures.length; i++) {
       const fx = fixtures[i];
       if (fx.mode === 'dead' || fx.suppressed) fx.mult = 0;
@@ -352,6 +358,16 @@ const World = (function () {
           fx.mult = fx.on ? 1 : L.FLICKER_OFF_LEVEL * rand();
         }
       } else fx.mult = 0.94 + 0.06 * Math.sin(t * 3 + i);
+      if (fx.mode !== 'dead' && !fx.suppressed) {
+        if (fx.dying > 0) {                                                  // buzzing, then gone for the rest of the run
+          if (t >= fx.dying) { fx.mode = 'dead'; fx.dying = 0; fx.mult = 0; }
+          else fx.mult = Math.sin(t * 70) > 0.2 ? 1 : 0.05;
+        } else if (fx.flickerUntil > t) fx.mult = Math.sin(t * 80) > 0 ? 1 : 0.08;   // one nervous flicker, then it settles
+        else {
+          if (fx.group === 'corridor') fx.mult *= 1 + L.PULSE_GAIN * pulse;
+          if (dimAmt > 0.01 && fx.floor === dimPos.floor && Math.hypot(fx.x - dimPos.x, fx.z - dimPos.z) < L.DIM_RADIUS) fx.mult *= 1 - L.DIM_AMOUNT * dimAmt;
+        }
+      }
       if (fx.mat) {
         const k = (fx.mode === 'dead' || fx.suppressed) ? 0.08 : Math.max(0.12, fx.mult);
         fx.mat.color.copy(fx.baseColor).multiplyScalar(k);
@@ -560,6 +576,7 @@ const World = (function () {
     base.position.y = 0.02; g.add(base);
     if (fallen) { g.rotation.x = Math.PI / 2 - 0.1; g.position.y = 0.25; }
     groups[f].add(g);
+    return g;
   }
 
   function monitor(f, x, z, facing, o) {
@@ -624,7 +641,9 @@ const World = (function () {
     addCollider(f, x - w / 2, z - d / 2, x + w / 2, z + d / 2);
   }
 
+  const bodyList = [];
   function body(f, x, z, rotY, pose, collide) {
+    if (f >= 0) bodyList.push({ floor: f, x: x, z: z });
     const g = new THREE.Group();
     g.position.set(x, f * H, z); g.rotation.y = rotY;
     const cloth = lambert(pick(C.DECOR.BODY_COLORS));
@@ -641,6 +660,15 @@ const World = (function () {
       add(new THREE.BoxGeometry(0.11, 0.5, 0.11), cloth, -0.3, 0.38, 0.1, 0.1, 0, 0.12);
       add(new THREE.BoxGeometry(0.11, 0.5, 0.11), cloth, 0.32, 0.34, 0.14, 0.2, 0, -0.2);
       bloodPool(f, x, z + 0.3, 0.55);
+    } else if (pose === 'neat') {
+      // someone moved and arranged them: on the back, legs together, hands folded on the chest
+      add(new THREE.BoxGeometry(0.46, 0.2, 0.62), cloth, 0, 0.12, 0);
+      add(new THREE.SphereGeometry(0.115, 10, 8), mats.skin, 0, 0.14, 0.45);
+      add(new THREE.BoxGeometry(0.34, 0.16, 0.74), mats.pants, 0, 0.09, -0.66);
+      add(new THREE.BoxGeometry(0.2, 0.08, 0.1), cloth, -0.06, 0.25, 0.12, 0, 0.5, 0);
+      add(new THREE.BoxGeometry(0.2, 0.08, 0.1), cloth, 0.06, 0.28, 0.12, 0, -0.5, 0);
+      add(new THREE.BoxGeometry(0.1, 0.1, 0.4), cloth, -0.27, 0.13, 0.05);
+      add(new THREE.BoxGeometry(0.1, 0.1, 0.4), cloth, 0.27, 0.13, 0.05);
     } else {
       add(new THREE.BoxGeometry(0.46, 0.2, 0.62), cloth, 0, 0.12, 0);
       add(new THREE.SphereGeometry(0.115, 10, 8), mats.skin, 0.02, 0.15, 0.42);
@@ -718,7 +746,7 @@ const World = (function () {
       tagList = calmObjs.gore;
       desk(f, -23, -3.6, 3.2, 1.2);
       monitor(f, -23, -3.9, 'n');
-      chair(f, -23, -2.0, Math.PI, false);
+      spinners.push(chair(f, -23, -2.0, Math.PI, false));      // still turning, as if someone just left it
       pbox(f, -24.6, -3.6, 0.14, 0.2, 0.14, mats.metalDark, { y: 0.78, collide: false });
       addFixture({ floor: f, x: -24.6, y: f * H + 1.1, z: -3.6, color: L.LAMP_COLOR_RED, intensity: L.LAMP_INTENSITY, distance: L.LAMP_DISTANCE, group: 'lamp', visible: false });
       textPlane(f, -24.45, 1.12, -3.86, 0.16, 0.16, ['ARIA', 'patch', 'tonight', 'DO NOT', 'interrupt'], 'n', { bg: '#e8e08a', size: 22, px: 128 });
@@ -778,7 +806,8 @@ const World = (function () {
       chair(f, -7.0, 2.3, 1.0, true);
       table(f, -7, -3.2, 2.6, 1.2, 0.74);
       hideSpots.push({ id: 'desk_' + hideSpots.length, type: 'desk', floor: f, x: -7, z: -3.2, w: 2.6, d: 1.2, exitFace: 'n', rect: { x1: -8.3, z1: -3.8, x2: -5.7, z2: -2.6 } });
-      body(f, -7, -3.2, 1.5, 'lying', false);
+      body(f, -7, -3.2, 1.5, 'neat', false);
+      body(f, -4.9, 2.6, 3.4, 'slumped');                 // next to his desk: the mug is still steaming
       monitor(f, -5.2, -4.4, 'w', { y: 0.0, mode: 'flicker' });
       smear(f, -7.1, 1.0, 5.95, 's', 1.2, 1.0);
       handprint(f, -7.9, 1.0, 5.98, 's');
@@ -931,7 +960,7 @@ const World = (function () {
       interactables.push({ id: 'security_terminal', floor: f, x: -8, y: 1.15, z: 5.2 });
       textPlane(f, -25.78, 1.1, 0, 0.9, 0.16, ['OVR-7391-PWR'], 'e', { bg: '#d9d9d2', color: '#33333a', size: 38, px: 512, family: 'Courier New, monospace' });
       interactables.push({ id: 'power_code', floor: f, x: -25.7, y: 1.1, z: 0 });
-      body(f, -13.4, -4.6, 1.8, 'lying');
+      body(f, -13.4, -4.6, 1.8, 'neat');
       body(f, -24.6, 5.0, 0.2, 'slumped');
       handprint(f, -25.85, 1.0, 3.5, 'e'); handprint(f, -25.85, 1.6, 3.6, 'e', 0.24);
     },
@@ -988,7 +1017,7 @@ const World = (function () {
       calmObjs.items.fuel_code = textPlane(f, -25.5, 0.78, -1.15, 0.17, 0.17, ['FUEL', 'IGNITION', '4827'], 'e', { bg: '#e8e08a', color: '#222', size: 22, px: 128, rotZ: -0.08 });
       interactables.push({ id: 'fuel_code', floor: f, x: -25.5, y: 0.78, z: -1.15 });
       hatch(f, -22, 4.5, false);
-      body(f, -8, 4.2, 0.6, 'lying');
+      body(f, -8, 4.2, 0.6, 'neat');
       addFixture({ floor: f, x: -22, y: ceilY(f), z: 0, color: 0xffa020, intensity: 0.5, distance: 8, mode: 'flicker' });
     },
 
@@ -1005,6 +1034,133 @@ const World = (function () {
       crate(f, 24.2, 4.5, 1.0); crate(f, 24.5, 3.3, 0.8); crate(f, 15.2, 4.5, 1.1);
     }
   };
+
+  // ------------------------------------------------------------------ Update 6: environmental horror props
+  const spinners = [];        // chairs that are still turning
+  const steam = [];           // steam puffs over the mug
+  const shadowBands = [];     // faint dark bands on walls that drift when nothing moves
+  const phoneAt = C.ENV.PHONE;
+
+  function canvasTex(w, h, draw) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    draw(c.getContext('2d'), w, h);
+    const t = new THREE.CanvasTexture(c); return t;
+  }
+
+  function clockTexture() {
+    return canvasTex(128, 128, (g, w) => {
+      g.fillStyle = '#e8e4d8'; g.beginPath(); g.arc(64, 64, 62, 0, 6.3); g.fill();
+      g.strokeStyle = '#222'; g.lineWidth = 4; g.stroke();
+      g.lineWidth = 3;
+      for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; g.beginPath(); g.moveTo(64 + Math.sin(a) * 52, 64 - Math.cos(a) * 52); g.lineTo(64 + Math.sin(a) * 58, 64 - Math.cos(a) * 58); g.stroke(); }
+      const hh = parseInt(C.ENV.CLOCK_TIME.split(':')[0], 10) % 12, mm = parseInt(C.ENV.CLOCK_TIME.split(':')[1], 10);
+      const ha = (hh + mm / 60) * Math.PI / 6, ma = mm * Math.PI / 30;
+      g.lineWidth = 6; g.beginPath(); g.moveTo(64, 64); g.lineTo(64 + Math.sin(ha) * 30, 64 - Math.cos(ha) * 30); g.stroke();
+      g.lineWidth = 4; g.beginPath(); g.moveTo(64, 64); g.lineTo(64 + Math.sin(ma) * 46, 64 - Math.cos(ma) * 46); g.stroke();
+      g.fillStyle = '#222'; g.beginPath(); g.arc(64, 64, 5, 0, 6.3); g.fill();
+    });
+  }
+
+  function softTex(inner, outer) {
+    return canvasTex(64, 64, (g) => {
+      const gr = g.createRadialGradient(32, 32, 2, 32, 32, 30);
+      gr.addColorStop(0, inner); gr.addColorStop(1, outer);
+      g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+    });
+  }
+
+  function buildDetails() {
+    const E = C.ENV;
+    // 1. every clock in the building: stopped at 03:31
+    const ct = clockTexture();
+    const clockMat = new THREE.MeshBasicMaterial({ map: ct });
+    for (let f = 0; f <= 3; f++) {
+      C.LAYOUT[String(f)].rooms.forEach(r => {
+        const door = r.doors && r.doors[0];
+        const fromN = door && door.side === 'n';
+        const x = r.x1 + (r.x2 - r.x1) * 0.78, z = fromN ? r.z1 + 0.05 : r.z2 - 0.05;
+        const m = new THREE.Mesh(new THREE.CircleGeometry(0.2, 20), clockMat);
+        m.position.set(x, f * H + 2.35, z); m.rotation.y = fromN ? 0 : Math.PI;
+        groups[f].add(m);
+      });
+    }
+    // 2. Marcus's mug, still steaming, on the desk next to the body
+    pcyl(2, -6.4, 3.45, 0.05, 0.09, mats.white, { y: 0.78, collide: false });
+    const st = softTex('rgba(255,255,255,0.9)', 'rgba(255,255,255,0)');
+    for (let i = 0; i < 6; i++) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: st, transparent: true, depthWrite: false, opacity: 0 }));
+      sp.scale.set(0.08, 0.08, 1); sp.position.set(-6.4, 2 * H + 0.9, 3.45);
+      groups[2].add(sp);
+      steam.push({ s: sp, ph: i / 6 });
+    }
+    // 3. an unsent email on Marcus's monitor
+    interactables.push({ id: 'email_draft', floor: 2, x: -5.2, y: 0.45, z: -4.4 });
+    // 4. a note in your own handwriting, in your office
+    textPlane(2, -23.75, 1.3, -3.9, 0.15, 0.15, ['Don\'t', 'trust the', 'vents.'], 'n', { bg: '#e8e08a', color: '#1a1a6a', size: 20, px: 128, rotZ: 0.06 });
+    interactables.push({ id: 'vent_note', floor: 2, x: -23.75, y: 1.3, z: -3.9 });
+    // 5. the plant in the break room: alive, healthy, watered
+    pbox(1, 23.5, -5.5, 1.0, 0.75, 0.5, mats.woodLight);
+    pcyl(1, 23.5, -5.5, 0.11, 0.14, lambert(0x8a4a2a), { y: 0.75, collide: false });
+    const leaf = lambert(0x2f8a3a);
+    for (let i = 0; i < 7; i++) {
+      const a = i * 0.9, lf = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.26, 0.012), leaf);
+      lf.position.set(23.5 + Math.sin(a) * 0.07, 1 * H + 0.99, -5.5 + Math.cos(a) * 0.07);
+      lf.rotation.set(Math.cos(a) * 0.5, a, Math.sin(a) * 0.5); groups[1].add(lf);
+    }
+    interactables.push({ id: 'plant', floor: 1, x: 23.5, y: 0.95, z: -5.5 });
+    // 6. blood that tells stories
+    //    a drag mark that runs to a closed door and continues UNDER it
+    dragMark(2, 19.4, 9.3, 20, 5.2, 0.4);
+    //    someone sliding down a wall: handprints at decreasing heights
+    [[1.85, 0.27], [1.55, 0.26], [1.2, 0.25], [0.85, 0.23], [0.5, 0.22], [0.26, 0.2]].forEach((p, i) => handprint(1, -25.85, p[0], -7.3 + i * 0.07, 'e', p[1]));
+    smear(1, -25.88, 0.7, -7.0, 'e', 0.26, 1.2);
+    //    one bloody fingerprint on a light switch
+    pbox(2, -12.7, 6.08, 0.08, 0.12, 0.02, mats.white, { y: 1.25, collide: false });
+    const fp = new THREE.Mesh(new THREE.CircleGeometry(0.011, 10), mats.blood);
+    fp.scale.set(0.8, 1.2, 1); fp.position.set(-12.7, 2 * H + 1.3, 6.065); fp.rotation.y = Math.PI; groups[2].add(fp);
+    //    a smear on the office window, from inside
+    smear(2, -19.65, 1.5, 5.93, 's', 1.0, 0.9);
+    // 7. an overturned chair blocks the specimen room doorway
+    chair(1, 9.0, -7.1, 0.6, true);
+    addCollider(1, 8.1, -7.5, 9.9, -6.4);
+    // 8. a phone off the hook (the hold music plays near it)
+    pbox(phoneAt.floor, phoneAt.x, phoneAt.z, 0.22, 0.05, 0.28, mats.dark, { y: 0.78, collide: false });
+    pbox(phoneAt.floor, phoneAt.x + 0.55, phoneAt.z + 0.55, 0.07, 0.04, 0.24, mats.metalDark, { collide: false, rotY: 0.7 });
+    addBox(groups[phoneAt.floor], mats.cable, phoneAt.x + 0.1, phoneAt.floor * H + 0.05, phoneAt.z + 0.1, phoneAt.x + 0.5, phoneAt.floor * H + 0.07, phoneAt.z + 0.14);
+    // 9. shadows that move a little when nothing does
+    const shTex = canvasTex(32, 128, (g, w, h) => {
+      const gr = g.createLinearGradient(0, 0, w, 0);
+      gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(0.5, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    });
+    for (let f = 0; f <= 3; f++) {
+      const cor = C.LAYOUT[String(f)].corridor; if (!cor) continue;
+      for (let i = 0; i < E.SHADOWS.PER_FLOOR; i++) {
+        const n = i % 2 === 0, x = -22 + i * 7 + Math.sin(i * 3.7) * 2;
+        const base = 0.1 + 0.1 * Math.abs(Math.sin(i * 5.3));
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(0.6 + 0.3 * Math.abs(Math.sin(i * 2.1)), 2.2), new THREE.MeshBasicMaterial({ map: shTex, transparent: true, opacity: base, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+        m.position.set(x, f * H + 1.3, n ? cor.z1 + 0.03 : cor.z2 - 0.03);
+        m.rotation.y = n ? 0 : Math.PI;
+        groups[f].add(m);
+        shadowBands.push({ m: m, x: x, amp: 0.04 + 0.05 * Math.abs(Math.sin(i * 1.9 + f)), per: 9 + 13 * Math.abs(Math.sin(i * 2.7 + f * 1.3)), ph: i * 1.3 + f, base: base });
+      }
+    }
+  }
+
+  function updateDetails(dt, t) {
+    spinners.forEach(g => { g.rotation.y += 0.28 * dt; });
+    steam.forEach(s => {
+      const p = ((t * 0.35 + s.ph) % 1);
+      s.s.position.y = 2 * H + 0.88 + p * 0.45;
+      s.s.position.x = -6.4 + Math.sin(t + s.ph * 6) * 0.03 * p;
+      s.s.scale.setScalar(0.06 + p * 0.16);
+      s.s.material.opacity = Math.sin(p * Math.PI) * 0.35;
+    });
+    shadowBands.forEach(b => {
+      b.m.position.x = b.x + Math.sin(t * 6.283 / b.per + b.ph) * b.amp;
+      b.m.material.opacity = b.base * (0.85 + 0.3 * Math.sin(t * 6.283 / (b.per * 0.7) + b.ph));
+    });
+  }
 
   // Floor 3 corridor extras: the vent panel (sealed until the lockdown) and the server door prompt.
   function buildLockdownProps(f) {
@@ -1359,6 +1515,7 @@ const World = (function () {
     doors.forEach(d => { if (d.floor === 3) d.setLocked(d.initialLocked); });     // the lockdown is undone
     setLockdown(false);
     setBasementBody(false);
+    fixtures.forEach(fx => { fx.mode = fx.baseMode; fx.dying = 0; fx.flickerUntil = 0; });   // lights that died this run come back
     exitVentIfActive();
     const ex = doors.find(d => d.exit);
     if (ex) ex.setLocked(true);
@@ -1486,6 +1643,7 @@ const World = (function () {
     buildStairs();
     for (let f = 0; f <= B.FLOOR_MAX; f++) buildFloor(f);
     buildLockdownProps(3);
+    buildDetails();
     buildBasement();
     buildPassages();
     buildExterior();
@@ -1499,7 +1657,9 @@ const World = (function () {
   }
 
   function update(dt, t, playerPos) {
+    dimPos.floor = playerPos.floor; dimPos.x = playerPos.x; dimPos.z = playerPos.z;
     updateFixtures(dt, t);
+    updateDetails(dt, t);
     updateExtras(dt, t);
     if (t - lastAssign > L.REASSIGN_INTERVAL) { lastAssign = t; assignLights(playerPos.x, playerPos.y + 1.5, playerPos.z); }
     for (let i = 0; i < lightPool.length; i++) {
@@ -1529,6 +1689,17 @@ const World = (function () {
     setCalm: setCalm,
     blackout: blackout,
     stopFire: stopFire,
+    // Update 6: reactive lights
+    fixtures: fixtures,
+    bodies: bodyList,
+    setDim: function (on) { dimTarget = on ? 1 : 0; },
+    flickerNear: function (floor, x, z, r, secs) { fixtures.forEach(fx => { if (fx.floor === floor && Math.hypot(fx.x - x, fx.z - z) < r) fx.flickerUntil = curT + secs; }); },
+    killFixture: function (fx, secs) { if (fx.mode !== 'dead' && !fx.dying) fx.dying = curT + secs; },
+    nearestFixture: function (floor, x, z, maxD) {
+      let best = null, bd = maxD * maxD;
+      fixtures.forEach(fx => { if (fx.floor !== floor || fx.mode === 'dead' || fx.dying || fx.suppressed || fx.group === 'lamp') return; const d = (fx.x - x) * (fx.x - x) + (fx.z - z) * (fx.z - z); if (d < bd) { bd = d; best = fx; } });
+      return best;
+    },
     setBasementBody: setBasementBody,
     get basementBodyVisible() { return !!(horror.body && horror.body.visible); },
     setLockdown: setLockdown,
