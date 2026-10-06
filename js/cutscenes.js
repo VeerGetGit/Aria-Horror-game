@@ -372,6 +372,8 @@ const Cutscenes = (function () {
     return {
       duration: K.DURATION, playable: true,
       setup: function () {
+        Dialogue.clear();
+        cleanupFx();
         World.setCalm(false);
         Player.reset();
         World.setActiveFloor(2);
@@ -454,7 +456,7 @@ const Cutscenes = (function () {
         show(deathFx, false);
       },
       update: function (dt, tt) {
-        if (tt >= K.BLACK_AT) return;
+        if (tt >= K.BLACK_AT || GameState.state !== 'DEAD') return;      // the colour drain belongs to the death sequence alone
         // camera locked on the drone's red eye
         if (GameState.deathKind === 'sweep') {                       // the vent in the ceiling, not a drone
           const ps = Player.state;
@@ -1029,6 +1031,8 @@ const Cutscenes = (function () {
     if (doneCb) { const cb = doneCb; doneCb = null; cb(); }
   }
 
+  let openingPlayed = false;      // scenes 1-5 (flashback ... CCTV) play on the very first run only
+
   function playOpening(cb) {
     if (C.DEBUG.SKIP_OPENING) {
       doneCb = cb;
@@ -1037,10 +1041,17 @@ const Cutscenes = (function () {
       finish();
       return;
     }
-    play([sceneFlashback, sceneCalm, sceneGlitch, sceneBlack, sceneCctv, sceneWake], cb);
+    if (openingPlayed) {
+      // after a death: straight back to Scene 6. The corruption has already happened; the horror has begun.
+      play([sceneWake], cb);
+      return;
+    }
+    play([sceneFlashback, sceneCalm, sceneGlitch, sceneBlack, sceneCctv, sceneWake], function () { openingPlayed = true; if (cb) cb(); });
   }
 
   function play(list, cb) {
+    if (running && scene && scene.teardown) scene.teardown();     // never leave a half-finished scene's effects behind
+    cleanupFx();
     doneCb = cb;
     scenes = list;
     idx = -1; running = true;
@@ -1060,7 +1071,15 @@ const Cutscenes = (function () {
     nextScene();
   }
 
+  // Safety net: grayscale / death overlays can only exist while the death sequence is on screen.
+  function guardDeathFx() {
+    if (GameState.state === 'DEAD' && running) return;
+    if (gameCanvas.style.filter) gameCanvas.style.filter = '';
+    if (deathFx && !deathFx.classList.contains('hidden')) show(deathFx, false);
+  }
+
   function update(dt) {
+    guardDeathFx();
     if (running && scene && dt > 0) {
       t += dt;
       scene.events.forEach(e => { if (!e.done && t >= e.at) { e.done = true; e.fn(); } });
