@@ -441,3 +441,7 @@ html, body {
 #code-line { color: #fff; font-size: 34px; letter-spacing: 0.3em; }
 #code-entry.ok { border-color: #40e070; }
 #code-entry.ok #code-status { color: #40e070; }
+
+/* ---------- Update 7: whispers ---------- */
+#dlg.whisper .dlg-line { font-size: 0.82em; font-style: italic; opacity: 0.55; letter-spacing: 0.04em; }
+#dlg.whisper .dlg-speaker { opacity: 0.5; }

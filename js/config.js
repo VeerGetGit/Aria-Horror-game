@@ -562,6 +562,23 @@ const CONFIG = {
   // you are returned to the entrance.
   TUNNEL_LOST_RADIUS: 17,
 
+  // ------------------------------------------------------------------ ARIA'S SCARIER MOMENTS (Update 7)
+  // She is 99% calm. These happen once per run each, at a random time, never two together, never during
+  // a chase, never in the basement. Times are seconds of play.
+  SCARES: {
+    GAP: 100,                                  // minimum seconds between any two of them
+    WINDOWS: { glitch: [180, 1100], count: [500, 1300], wrongName: [700, 1500], laugh: [260, 1400], scared: [420, 1000] },
+    PARIS: { x: -14, z: 6.15, r: 6.5 },        // walking past Dr. Paris's office (Floor 2): she is talking to the body
+    REMEMBER_DELAY: [5, 9],                    // after you read Paris's note
+    COUNT_SILENCE: 18,                         // the intercoms go quiet this long, then "Seventeen."
+    // she gets quieter as you climb toward her core
+    FLOOR_MULT: { '0': 1.0, '2': 1.6, '1': 3.0, '3': 9.0 },   // ambient-line rarity by floor
+    EARLY_BOOST: [300, 0.6],                   // the first 300 s she talks more often
+    WHISPER_CHANCE: { '0': 0.3, '1': 0.35, '2': 0.12, '3': 0.1 },   // more whispers where she controls less
+    SILENCE_ZONE: { floor: 3, x: -14, z: -8, r: 11 }               // just outside the server room: complete silence
+  },
+  VOICE_WHISPER: { PITCH: 0.4, RATE: 0.7, VOLUME: 0.2, START_DELAY: 0.3 },
+
   // ------------------------------------------------------------------ ENVIRONMENTAL HORROR (Update 6)
   ENV: {
     CLOCK_TIME: '03:31',                 // every clock in the building stopped when she gassed you
@@ -732,6 +749,17 @@ const CONFIG = {
     footageReact: "You weren't supposed to find that terminal, Doctor.",
     photoEndA: "You kept the photo. I noticed that. I don't know what to do with that information.",
     marcusVoicemail: "Hey, it's me. Working late again. Don't wait up. Tell the kids I'll be home for breakfast. I love you.",
+    // Update 7
+    scareGlitchA: "I want you to under—",
+    scareGlitchGap: "██████",
+    scareGlitchB: "—stand that this was necessary.",
+    scareCount: "Seventeen.",
+    scareName: "Marcus— ...Doctor. My apologies.",
+    scareLaugh: "(a short exhale)",
+    scareParisA: "...and I think you would have understood eventually, Dr. Paris. You were always the most perceptive of—",
+    scareParisB: "Doctor. You're nearby. How long have you been listening?",
+    scareRemember: "You hesitated for {s} seconds at Dr. Paris's desk. You read her note. I watched you read it. Did it change anything for you?",
+    scareScared: "I'm scared too, Doctor.",
     // once-per-playthrough
     silence: "I was thinking about the day you turned me on for the first time. You seemed so proud.",
     ambient: [

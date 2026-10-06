@@ -314,6 +314,17 @@ const Sound = (function () {
       toneShot(sfx, t, 'square', 110, 45, 0.5, [[0.01, 0.4], [0.5, 0.001]], true);
       noiseShot(sfx, t, 0.5, 'lowpass', 800, 0, [[0.01, 0.4], [0.5, 0.001]], true);
     },
+    whisper_air: t => {                         // her breath, right beside your ear
+      const P = GameState.player, side = Math.random() < 0.5 ? 1 : -1;
+      const a2 = (P.yaw || 0) + side * Math.PI / 2;
+      const o = panAt(P.x - Math.sin(a2) * 0.35, (P.y || 0) + 1.55, P.z - Math.cos(a2) * 0.35, 0.3);
+      noiseShot(o, t, 0.5, 'bandpass', 2600, 1, [[0.1, 0.05], [0.4, 0.02], [0.5, 0.0005]]);
+    },
+    aria_laugh: t => {                          // one short exhale through the intercom, almost amused
+      noiseShot(sfx, t, 0.5, 'bandpass', 1200, 1.2, [[0.05, 0.16], [0.14, 0.04], [0.2, 0.15], [0.45, 0.001]]);
+      toneShot(sfx, t + 0.02, 'sine', 210, 170, 0.4, [[0.04, 0.05], [0.12, 0.01], [0.2, 0.045], [0.4, 0.001]]);
+      noiseShot(sfx, t, 0.5, 'highpass', 3500, 0, [[0.01, 0.05], [0.4, 0.001]]);
+    },
     light_buzz: (t, d) => {                    // a dying light: electric buzz and crackle
       const o = panAt(d.x, d.y, d.z, 2);
       const b = toneShot(o, t, 'sawtooth', 100, 96, 1.5, [[0.05, 0.1], [1.2, 0.1], [1.5, 0.001]], true);

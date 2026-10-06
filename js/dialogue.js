@@ -79,7 +79,7 @@ const Dialogue = (function () {
     if (item.vname === 'marcus' && voiceMarcus) { u.voice = voiceMarcus; u.lang = voiceMarcus.lang; }
     u.pitch = VC.PITCH; u.rate = VC.RATE;
     u.volume = (typeof Sound !== 'undefined' && Sound.isMuted()) ? 0 : VC.VOLUME;
-    u.onstart = function () { item.live = true; if (item.aria) bed(true); };
+    u.onstart = function () { item.live = true; if (item.aria && !item.whisper) bed(true); };
     u.onboundary = function (e) {
       if (e.name && e.name !== 'word') return;
       item.bSeen = true;
@@ -280,6 +280,9 @@ const Dialogue = (function () {
     if (isMuted() && !opts.force) return false;
     const speaker = opts.speaker || 'ARIA';
     if (speaker === 'ARIA' && GameState.player && GameState.player.floor === -1) return false;   // the basement: no intercom, no dialogue, ever
+    if (speaker === 'ARIA' && key !== 'cs' && key !== 'retry' && inSilenceZone()) return false;   // just outside the server room: complete silence
+    // somewhere she controls less, an ambient line is sometimes only a whisper, as if she were right beside you
+    if (key === 'ambient' && !opts.whisper && Math.random() < whisperChance()) opts = Object.assign({}, opts, { whisper: true });
     const item = {
       text: text,
       speaker: speaker,
@@ -289,8 +292,9 @@ const Dialogue = (function () {
       t: 0, shown: 0
     };
     item.vname = opts.voice || null;
-    item.vcfg = opts.voice === 'marcus' ? C.VOICE_MARCUS : V;
-    item.voiced = voiceOn() && (item.aria || !!opts.voice);
+    item.noStatic = !!opts.noStatic; item.glitch = !!opts.glitch; item.whisper = !!opts.whisper;
+    item.vcfg = opts.voice === 'marcus' ? C.VOICE_MARCUS : (item.whisper ? Object.assign({}, V, C.VOICE_WHISPER) : V);
+    item.voiced = voiceOn() && (item.aria || !!opts.voice) && !opts.silent;
     item.sp = 'idle'; item.sT = 0; item.bIdx = 0;
     if (PRIORITY[key] || opts.interrupt) { queue = []; if (cur) cancelSpeech(); cur = null; }
     else if (queue.length >= 3) return false;
@@ -304,7 +308,7 @@ const Dialogue = (function () {
   function startNext() {
     cur = queue.shift();
     if (!cur) { box.classList.remove('show'); return; }
-    if (cur.aria) { cur.pre = C.LIGHTING.DIM_LEAD; dim(true); box.classList.remove('show'); return; }
+    if (cur.aria && !cur.noStatic && !cur.whisper) { cur.pre = C.LIGHTING.DIM_LEAD; dim(true); box.classList.remove('show'); return; }
     showCur();
   }
 
@@ -312,15 +316,30 @@ const Dialogue = (function () {
     speakerEl.textContent = cur.speaker === 'ARIA' ? 'ARIA' : cur.speaker;
     box.className = 'show ' + (cur.speaker === 'ARIA' ? 'aria' : 'you');
     lineEl.textContent = '';
-    if (cur.aria) {
-      staticT = 0.55;
+    if (cur.whisper) { box.classList.add('whisper'); if (GameState.emit) GameState.emit('whisper_air', {}); }
+    if ((cur.aria && !cur.noStatic && !cur.whisper) || cur.glitch) {
+      staticT = cur.glitch ? 0.9 : 0.55;
       fx('intercom_static');
       box.classList.add('crackle');
     }
   }
 
+  function inSilenceZone() {
+    const Z = C.SCARES.SILENCE_ZONE, P = GameState.player;
+    return !!P && P.floor === Z.floor && Math.hypot(P.x - Z.x, P.z - Z.z) < Z.r;
+  }
+  function whisperChance() {
+    const P = GameState.player;
+    return (C.SCARES.WHISPER_CHANCE[String(P && P.floor)] || 0);
+  }
+  function floorMult() {
+    const P = GameState.player;
+    return C.SCARES.FLOOR_MULT[String(P && P.floor)] || 1;
+  }
+
   function scheduleAmbient(first) {
-    nextAmbient = now() + (first ? A.LINE_FIRST_MIN + Math.random() * (A.LINE_FIRST_MAX - A.LINE_FIRST_MIN)
+    const early = now() < C.SCARES.EARLY_BOOST[0] ? C.SCARES.EARLY_BOOST[1] : 1;
+    nextAmbient = now() + early * (first ? A.LINE_FIRST_MIN + Math.random() * (A.LINE_FIRST_MAX - A.LINE_FIRST_MIN)
       : A.LINE_MIN + Math.random() * (A.LINE_MAX - A.LINE_MIN));
   }
 
@@ -381,6 +400,8 @@ const Dialogue = (function () {
       if (!started) { started = true; scheduleAmbient(true); }
       if (now() >= nextAmbient) {
         const P = GameState.player;
+        const m = floorMult();
+        if (m > 1 && Math.random() > 1 / m) { scheduleAmbient(false); return; }      // higher up she talks less and less
         const calm = (GameState.threat || 0) < A.LINE_MAX_THREAT && !P.hiding;
         if (calm && !isMuted() && !speaking() && typeof Aria !== 'undefined' && Aria.say('ambient', true)) scheduleAmbient(false);
         else nextAmbient = now() + 10;
