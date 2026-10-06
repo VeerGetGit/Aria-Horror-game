@@ -879,6 +879,7 @@ const Cutscenes = (function () {
   // A new run: the story flags that belong to a single run start over.
   function resetRun() {
     E.armed = false; E.fire = false; E.lockdown = false;
+    M.figUsed = []; M.figLast = undefined; M.figCount = 0; M.figCool = 0; M.tunnelT = 0;
     footageSeen = false; vmUntil = 0;
     GameState.noteOpen = false;
     Object.keys(inspected).forEach(k => { delete inspected[k]; });
@@ -1115,7 +1116,7 @@ const Cutscenes = (function () {
   }
 
   // ------------------------------------------------------------------ scripted moments (in play)
-  const M = { play: 0, nextSlam: 0, silence: 'idle', silenceUntil: 0, tunnelT: 0, fig: null, figCool: 0, figCount: 0, vitalsT: 0, started: false };
+  const M = { figUsed: [], figLast: undefined, play: 0, nextSlam: 0, silence: 'idle', silenceUntil: 0, tunnelT: 0, fig: null, figCool: 0, figCount: 0, vitalsT: 0, started: false };
 
   function buildFigure() {
     const grp = new THREE.Group();
@@ -1171,6 +1172,13 @@ const Cutscenes = (function () {
     });
   }
 
+  // which tunnel (index into the basement layout) a point lies in
+  function tunnelSeg(x, z) {
+    const T = C.LAYOUT['-1'].tunnels;
+    for (let i = 0; i < T.length; i++) if (!T[i].shaft && x >= T[i].x1 && x <= T[i].x2 && z >= T[i].z1 && z <= T[i].z2) return i;
+    return -2;
+  }
+
   function figure(dt) {
     const P = GameState.player;
     const F = AM.FIGURE;
@@ -1198,7 +1206,18 @@ const Cutscenes = (function () {
     let L = 0;
     while (L < 30 && !World.blocked(-1, P.x + fx * L, P.z + fz * L, 0.25)) L += 0.5;
     if (L - 1.2 < F.MIN_DIST) return;
-    const dist = Math.min(F.MAX_DIST, L - 1.2);
+    // every appearance: a tunnel it has not used yet, and a distance clearly different from the last one
+    const lo = F.MIN_DIST, hi = Math.min(F.MAX_DIST, L - 1.2);
+    let dist = -1, seg = -2;
+    for (let tries = 0; tries < 6; tries++) {
+      const dd = lo + Math.random() * (hi - lo);
+      if (M.figLast !== undefined && Math.abs(dd - M.figLast) < 3) continue;
+      const sg = tunnelSeg(P.x + fx * dd, P.z + fz * dd);
+      if (M.figUsed.indexOf(sg) >= 0) continue;
+      dist = dd; seg = sg; break;
+    }
+    if (dist < 0) return;
+    M.figUsed.push(seg); M.figLast = dist;
     f.x = P.x + fx * dist; f.z = P.z + fz * dist;
     f.mesh.position.set(f.x, -4 * 1 + 0, f.z);
     f.mesh.position.y = -1 * C.BUILDING.FLOOR_H;

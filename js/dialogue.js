@@ -278,6 +278,7 @@ const Dialogue = (function () {
     opts = opts || {};
     if (isMuted() && !opts.force) return false;
     const speaker = opts.speaker || 'ARIA';
+    if (speaker === 'ARIA' && GameState.player && GameState.player.floor === -1) return false;   // the basement: no intercom, no dialogue, ever
     const item = {
       text: text,
       speaker: speaker,

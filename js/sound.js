@@ -312,6 +312,23 @@ const Sound = (function () {
       toneShot(sfx, t, 'square', 110, 45, 0.5, [[0.01, 0.4], [0.5, 0.001]], true);
       noiseShot(sfx, t, 0.5, 'lowpass', 800, 0, [[0.01, 0.4], [0.5, 0.001]], true);
     },
+    wall_scratch: (t, d) => {                 // something scratching inside the wall
+      const o = panAt(d.x, (GameState.player.y || 0) + 1.1, d.z, 2.5);
+      const n = 7 + Math.floor(Math.random() * 9);
+      let tt = t;
+      for (let i = 0; i < n; i++) {
+        noiseShot(o, tt, 0.12, 'bandpass', 1800 + Math.random() * 1400, 2.5, [[0.006, 0.07], [0.12, 0.0008]], true);
+        tt += 0.09 + Math.random() * 0.12 + (i % 4 === 3 ? 0.25 : 0);
+      }
+    },
+    light_die: t => {
+      toneShot(sfx, t, 'square', 130, 38, 0.5, [[0.01, 0.2], [0.5, 0.001]], true);
+      noiseShot(sfx, t, 0.25, 'highpass', 2500, 0, [[0.004, 0.18], [0.25, 0.001]]);
+    },
+    light_return: t => {
+      toneShot(sfx, t, 'square', 1500, 1100, 0.03, [[0.002, 0.18], [0.03, 0.001]]);
+      toneShot(sfx, t + 0.04, 'sine', 90, 90, 0.5, [[0.02, 0.06], [0.5, 0.001]], true);
+    },
     access_denied: t => {
       toneShot(sfx, t, 'square', 150, 110, 0.18, [[0.005, 0.12], [0.18, 0.001]]);
       toneShot(sfx, t + 0.2, 'square', 150, 110, 0.18, [[0.005, 0.12], [0.18, 0.001]]);
@@ -421,7 +438,8 @@ const Sound = (function () {
     }
     const tick = k => { timers[k] -= dt; return timers[k] <= 0; };
     if (tick('vent')) { timers.vent = rnd(2.5, 8); if (!tunnels) play('vent'); }
-    if (tunnels) {
+    const hush = (GameState.tunnelHush || 0) > GameState.time;     // after the light returns, the tunnel holds its breath
+    if (tunnels && !hush) {
       if (tick('drip')) { timers.drip = rnd(0.8, 4.5); play('drip'); }
       if (tick('pipe')) { timers.pipe = rnd(14, 34); play('pipe'); }
       if (tick('skitter')) { timers.skitter = rnd(18, 45); skitterOnce(P); }

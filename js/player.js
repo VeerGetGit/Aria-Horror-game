@@ -32,6 +32,7 @@ const Player = (function () {
     crouching: false, sprinting: false, moving: false,
     stepDist: 0, bobPhase: 0, bobAmp: 0,
     stamina: 1, winded: false,
+    lightDeadT: 0, lightWas: false,        // the flashlight dies for a fixed time (Update 5)
     noiseRadius: 0,
     battery: F.BATTERY_MAX,
     flashlightOn: false,
@@ -86,13 +87,25 @@ const Player = (function () {
 
   // ------------------------------------------------------------------ flashlight
   function toggleFlashlight() {
-    if (S.frozen || S.hiding) return;
+    if (S.frozen || S.hiding || S.lightDeadT > 0) return;
     if (!S.flashlightOn && S.battery <= 0 && S.floor === -1) return;
     S.flashlightOn = !S.flashlightOn;
     if (GameState.emit) GameState.emit('flashlight', S.flashlightOn);
   }
 
+  // The light dies for exactly `secs` seconds and then comes back on its own.
+  function killLight(secs) {
+    S.lightWas = S.flashlightOn; S.flashlightOn = false; S.lightDeadT = secs;
+    if (GameState.emit) GameState.emit('light_die', {});
+  }
+
   function updateFlashlight(dt, t) {
+    if (S.lightDeadT > 0) {
+      S.lightDeadT -= dt;
+      spot.intensity = 0;
+      if (S.lightDeadT <= 0) { S.lightDeadT = 0; S.flashlightOn = S.lightWas; if (GameState.emit) GameState.emit('light_return', {}); }
+      return;
+    }
     if (S.flashlightOn && S.floor === -1) {
       S.battery = Math.max(0, S.battery - F.BATTERY_DRAIN * dt);
       if (S.battery <= 0) S.flashlightOn = false;
@@ -322,6 +335,7 @@ const Player = (function () {
     const sp = P.SPAWN;
     S.battery = F.BATTERY_MAX;
     S.flashlightOn = false;
+    S.lightDeadT = 0;
     S.stamina = 1; S.winded = false;
     S.hiding = null;
     S.eye = P.EYE_STAND;
@@ -382,6 +396,7 @@ const Player = (function () {
     update: update,
     teleport: teleport,
     releaseKeys: clearKeys,
+    killLight: killLight,
     forwardHeld: function () { return anyDown(P.KEYS.FORWARD); },
     state: S,
     set onStep(fn) { onStep = fn; }

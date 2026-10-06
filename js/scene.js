@@ -652,6 +652,7 @@ const World = (function () {
     }
     groups[f].add(g);
     if (collide !== false) addCollider(f, x - 0.35, z - 0.35, x + 0.35, z + 0.35);
+    return g;
   }
 
   function rack(f, x, z, rotY) {
@@ -1213,6 +1214,46 @@ const World = (function () {
     hatch(f, 22.5, 10.5, true);
     body(f, 10.5, 1.5, 1.2, 'lying');
     handprint(f, 8.02, 1.1, -1.0, 'e'); // sits on the pump-room west wall (x = 8)
+    buildBasementHorror(f, y0);
+  }
+
+  // Update 5: the things down here that nobody explains.
+  const horror = { body: null, pools: [] };
+  function buildBasementHorror(f, y0) {
+    const K = C.BASEMENT, g = groups[f];
+    // 1. a door welded shut from the inside (E: a two-line note, no explanation)
+    const wd = K.WELD_DOOR;
+    pbox(f, wd.x, wd.z + 0.07, 1.1, 2.0, 0.1, mats.metalDark, { collide: false });
+    const weld = lambert(0x8a5a2a);
+    [0.35, 1.0, 1.65].forEach(y => pbox(f, wd.x, wd.z + 0.14, 1.12, 0.05, 0.03, weld, { y: y, collide: false }));
+    [-0.55, 0.55].forEach(dx => pbox(f, wd.x + dx, wd.z + 0.14, 0.05, 2.0, 0.03, weld, { collide: false }));
+    textPlane(f, wd.x, 2.2, wd.z + 0.16, 0.45, 0.16, ['B-07'], 'n', { bg: '#c8b830', color: '#222', size: 40, px: 128 });
+    interactables.push({ id: 'welded_door', floor: f, x: wd.x, y: 1.0, z: wd.z + 0.16 });
+    // 2. the child's drawing from the break room fridge, on a tunnel wall
+    const dw = K.DRAWING;
+    textPlane(f, dw.x, dw.y, dw.z, 0.4, 0.5, ['  \\o/   ', ' ♥  |  ☼', ' / \\ /\\', 'to Mommy'], 'e', { bg: '#f4f0e0', color: '#2a5ad0', size: 22, px: 256, family: 'Comic Sans MS, cursive' });
+    // 3. handprints on the CEILING (never the walls)
+    const ch = K.CEILING_HANDS;
+    for (let i = 0; i < ch.count; i++) {
+      const a = i * 2.399, r = ch.spread * Math.sqrt((i + 0.5) / ch.count);
+      const s = 0.22 + 0.1 * Math.abs(Math.sin(i * 7.1));
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(s, s), mats.handprint);
+      m.rotation.x = Math.PI / 2; m.rotation.z = a * 3;
+      m.position.set(ch.x + Math.cos(a) * r, y0 + C.BUILDING.TUNNEL_CEIL_H - 0.012, ch.z + Math.sin(a) * r);
+      g.add(m);
+    }
+    // 4. a body that was not here before (hidden until you have walked past and come back)
+    const b = K.BODY;
+    tagList = horror.pools;
+    horror.body = body(f, b.x, b.z, b.rot, 'slumped', false);
+    tagList = null;
+    horror.body.visible = false;
+    horror.pools.forEach(p => { p.visible = false; });
+  }
+
+  function setBasementBody(on) {
+    if (horror.body) horror.body.visible = !!on;
+    horror.pools.forEach(p => { p.visible = !!on; });
   }
 
   // ------------------------------------------------------------------ passages
@@ -1317,6 +1358,7 @@ const World = (function () {
     setDrawerOpen(false);
     doors.forEach(d => { if (d.floor === 3) d.setLocked(d.initialLocked); });     // the lockdown is undone
     setLockdown(false);
+    setBasementBody(false);
     exitVentIfActive();
     const ex = doors.find(d => d.exit);
     if (ex) ex.setLocked(true);
@@ -1487,6 +1529,8 @@ const World = (function () {
     setCalm: setCalm,
     blackout: blackout,
     stopFire: stopFire,
+    setBasementBody: setBasementBody,
+    get basementBodyVisible() { return !!(horror.body && horror.body.visible); },
     setLockdown: setLockdown,
     enterVent: enterVent,
     exitVent: exitVent,

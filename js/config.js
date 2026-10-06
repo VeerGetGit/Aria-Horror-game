@@ -534,7 +534,7 @@ const CONFIG = {
     SILENCE_AFTER: 30,            // she stays quiet this long after her line
     FIGURE: {
       MIN_DIST: 12, MAX_DIST: 20, LOOK_AWAY: 0.55, LOOK_AWAY_TIME: 0.25,
-      MAX_VISIBLE: 7, CLOSE: 8, COOLDOWN: 100, MAX_APPEARANCES: 3, FIRST_DELAY: 20
+      MAX_VISIBLE: 7, CLOSE: 8, COOLDOWN: 55, MAX_APPEARANCES: 5, FIRST_DELAY: 20     // a different tunnel and distance every time
     },
     VITALS: { UPDATE: 0.2, NEAR: 14 }
   },
@@ -559,6 +559,17 @@ const CONFIG = {
   // Without the tunnel map you get lost: past this many metres from where you entered the tunnels,
   // you are returned to the entrance.
   TUNNEL_LOST_RADIUS: 17,
+
+  // ------------------------------------------------------------------ BASEMENT HORROR (Update 5)
+  // ARIA is completely silent down here: no intercom, no dialogue at all (dialogue.js enforces it).
+  BASEMENT: {
+    WELD_DOOR: { x: -16, z: -12 },                       // on the south wall of the north-west tunnel
+    DRAWING: { x: -23.96, y: 1.3, z: -4 },               // the break room fridge drawing, on a tunnel wall
+    CEILING_HANDS: { x: -12, z: 2.5, count: 10, spread: 1.9 },
+    BODY: { x: -4.5, z: 11.7, rot: Math.PI, r: 3.5, REVEAL_DIST: 18 },   // not there the first time; there when you come back
+    SCRATCH: { MIN: 13, MAX: 36, DIST: [2.5, 6] },       // scratching inside the walls, at random
+    BLACKOUT: { SECONDS: 3, MIN_TUNNEL_TIME: 30, MAX_TUNNEL_TIME: 80, HUSH: 8 }   // the flashlight dies for exactly 3 s, once per run
+  },
 
   // ------------------------------------------------------------------ FLOOR 3 LOCKDOWN (Update 4)
   // With all four Ending A items, walking up to the server room door triggers the lockdown. The door never
@@ -614,6 +625,7 @@ const CONFIG = {
     // ---- key item pickups (id = item id). noNote: just take it (toast + icon + ARIA's reaction)
     desk_key: { pickup: 'desk_key', noNote: true, prompt: 'Search the vent', crouch: true, crouchPrompt: 'Crouch (C) to reach the vent', crouchToast: 'The grate is too low. Crouch (C).' },
     desk_drawer: { action: 'drawer', prompt: 'Open the drawer' },
+    welded_door: { title: 'Door B-07', text: ['Welded shut.', '', 'From the inside.'] },
     server_door: { action: 'server_door', prompt: 'Try the server room door' },
     server_vent: { action: 'server_vent', prompt: 'Crawl into the vent', crouch: true, crouchPrompt: 'Crouch (C) to enter the vent', crouchToast: 'The panel is too low. Crouch (C).', noWatch: true, watchToast: 'The drone can see you. Not now.' },
     access_badge: { pickup: 'access_badge', noNote: true, prompt: 'Take the badge' },

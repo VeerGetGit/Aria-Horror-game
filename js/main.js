@@ -85,6 +85,7 @@ const Main = (function () {
     GameState.clearItems();
     World.resetRun();
     Cutscenes.resetRun();
+    Basement.resetRun();
     Aria.onRespawn();
     Drone.reset();
     Player.state.pitch = 0;
@@ -190,6 +191,7 @@ const Main = (function () {
     World.update(sdt, t, GameState.player);
     Hud.update(dt, t);
     Items.update(sdt);
+    Basement.update(sdt);
     Sound.update(dt);
   }
 
@@ -239,6 +241,7 @@ const Main = (function () {
     Drone.init();
     Sound.init();
     Items.init();
+    Basement.init();
 
     window.addEventListener('resize', onResize);
     document.addEventListener('pointerlockerror', function () { releaseLock(); onLockChange(); });
