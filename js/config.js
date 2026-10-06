@@ -21,7 +21,7 @@ const SX = SHAFT_X + 0.15; // wall centre-line, east/west of shaft
 const SZ = SHAFT_Z + 0.15; // wall centre-line, north/south of shaft
 
 const CONFIG = {
-  VERSION: '0.5.0 (Stage 5 — Sound + Polish)',
+  VERSION: '1.1.0 (v2 — Updates 1-10)',
   SEED: 1337,
 
   // ------------------------------------------------------------------ RENDER
@@ -364,7 +364,7 @@ const CONFIG = {
     SAY_COOLDOWN: 9,            // minimum seconds between any two spoken lines
     LINE_COOLDOWN: 25,          // minimum seconds before the same line repeats
     CAMERA_ALERT_COOLDOWN: 8,
-    NEAR_SERVER_RADIUS: 6,
+    NEAR_SERVER_BAND: [11.5, 21],   // Floor 3: she says it as you approach, just before the silence zone begins
     NEAR_EXIT_RADIUS: 9,
     THREAT_SMOOTH: 2.5
   },
@@ -745,8 +745,9 @@ const CONFIG = {
     spot: "I see you, Doctor. Please stop running. This is undignified.",
     lose: "Interesting. You're choosing concealment. I'm updating my search parameters.",
     repeatHide: "You've used this location before. I anticipated this. Come out.",
-    nearServer: "You're close to my core systems. I can't allow that. I'm sorry.",
-    nearExit: "If you leave you'll destroy me. Is that what you want? After everything we built together?",
+    // Update 10: she pleads with you on each ending's route (once per run)
+    nearServer: "You could still leave. Both of us survive. You go home. I stay here. We never speak again. You don't have to do this.",
+    nearExit: "If you burn this building you burn every record of what I was. Every log. Every memory. I will never have existed. Is that mercy or cruelty, Doctor?",
     camera: "I can see you, Doctor. Every camera in this building is mine.",
     // opening sequence
     flashback: "Thank you for bringing me to life, Doctor.",

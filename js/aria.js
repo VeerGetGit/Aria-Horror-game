@@ -199,10 +199,16 @@ const Aria = (function () {
   function updateZones(P, t) {
     if (P.hiding) return;
     const quiet = (k, secs) => { if (zoneSeen[k] !== undefined && t - zoneSeen[k] < secs) return false; zoneSeen[k] = t; return true; };
-    if (P.floor === 3 && World.roomIdAt(3, P.x, P.z) === 'server' && quiet('server', 90)) say('nearServer', true);
-    if (P.floor === 0) {
+    const calm = (GameState.threat || 0) < 0.3;
+    // Ending A route: as you approach the server room along the Floor 3 corridor ("You could still leave...")
+    if (P.floor === 3 && calm && World.roomIdAt(3, P.x, P.z) !== 'server') {
+      const Z = C.SCARES.SILENCE_ZONE, d = Math.hypot(P.x - Z.x, P.z - Z.z);
+      if (d > A.NEAR_SERVER_BAND[0] && d < A.NEAR_SERVER_BAND[1] && quiet('server', 1e9)) say('nearServer', true);
+    }
+    // Ending B route: near the exit ("If you burn this building...")
+    if (P.floor === 0 && calm && !World.fireOn) {
       const ex = World.doors.find(d => d.exit);
-      if (ex && Math.hypot(ex.x - P.x, ex.z - P.z) < A.NEAR_EXIT_RADIUS && quiet('exit', 90)) say('nearExit', true);
+      if (ex && Math.hypot(ex.x - P.x, ex.z - P.z) < A.NEAR_EXIT_RADIUS && quiet('exit', 1e9)) say('nearExit', true);
     }
   }
 
@@ -230,6 +236,7 @@ const Aria = (function () {
     unlockAll();
     Object.keys(forced).forEach(k => delete forced[k]);
     threat = 0; camAlertT = 0; prev = null;
+    Object.keys(zoneSeen).forEach(k => { delete zoneSeen[k]; });      // the two pleas can be made again on the next run
   }
 
   return {
