@@ -89,6 +89,7 @@ const Main = (function () {
     Atmos.resetRun();
     Scares.resetRun();
     Playstyle.resetRun();
+    Sweep.resetRun();
     Aria.onRespawn();
     Drone.reset();
     Player.state.pitch = 0;
@@ -103,8 +104,18 @@ const Main = (function () {
   }
 
   // Called by the drone when it reaches the player (or opens their hiding spot).
+  // The ventilation sweep finished and you were out in the open.
+  function sweepDeath() {
+    if (GameState.state !== 'PLAYING') return;
+    GameState.deaths++;
+    GameState.deathKind = 'sweep';
+    GameState.emit('caught', { deaths: GameState.deaths });
+    setState('DEAD');
+  }
+
   function caught() {
     if (GameState.state !== 'PLAYING') return;
+    GameState.deathKind = 'drone';
     GameState.deaths++;
     GameState.emit('caught', { deaths: GameState.deaths });
     setState('DEAD');
@@ -198,6 +209,7 @@ const Main = (function () {
     Atmos.update(sdt);
     Scares.update(sdt);
     Playstyle.update(sdt);
+    Sweep.update(sdt);
     Sound.update(dt);
   }
 
@@ -251,6 +263,7 @@ const Main = (function () {
     Atmos.init();
     Scares.init();
     Playstyle.init();
+    Sweep.init();
 
     window.addEventListener('resize', onResize);
     document.addEventListener('pointerlockerror', function () { releaseLock(); onLockChange(); });
@@ -272,5 +285,5 @@ const Main = (function () {
 
   window.addEventListener('DOMContentLoaded', init);
 
-  return { releaseLock: releaseLock, setState: setState, caught: caught, restartRun: restartRun, endCard: endCard, step: step };
+  return { releaseLock: releaseLock, setState: setState, caught: caught, sweepDeath: sweepDeath, restartRun: restartRun, endCard: endCard, step: step };
 })();

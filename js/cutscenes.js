@@ -456,8 +456,13 @@ const Cutscenes = (function () {
       update: function (dt, tt) {
         if (tt >= K.BLACK_AT) return;
         // camera locked on the drone's red eye
-        const d = Drone.data;
-        lookAt(d.x, d.floor * C.BUILDING.FLOOR_H + 0.68, d.z, K.LOOK_RATE, dt);
+        if (GameState.deathKind === 'sweep') {                       // the vent in the ceiling, not a drone
+          const ps = Player.state;
+          lookAt(ps.x, ps.y + 3.8, ps.z - 0.3, K.LOOK_RATE * 0.6, dt);
+        } else {
+          const d = Drone.data;
+          lookAt(d.x, d.floor * C.BUILDING.FLOOR_H + 0.68, d.z, K.LOOK_RATE, dt);
+        }
         const vig = clamp01((tt - K.VIGNETTE_START) / (K.VIGNETTE_FULL - K.VIGNETTE_START));
         const rise = clamp01((tt - K.TINT_START) / (K.TINT_PEAK - K.TINT_START));
         const gray = clamp01((tt - K.TINT_PEAK) / (K.GRAY_END - K.TINT_PEAK));

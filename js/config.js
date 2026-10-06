@@ -562,6 +562,20 @@ const CONFIG = {
   // you are returned to the entrance.
   TUNNEL_LOST_RADIUS: 17,
 
+  // ------------------------------------------------------------------ VENTILATION SWEEP (Update 9)
+  // Exactly twice per run. Never on Floor 3 or the ground floor, never during a chase or a cutscene,
+  // never in the first five minutes, never twice on the same floor in a row.
+  SWEEP: {
+    COUNT: 2,
+    MIN_PLAY: 300,                        // seconds of play before the first one can happen
+    FLOORS: [1, 2],
+    WINDOWS: [[330, 900], [900, 1700]],   // random time (seconds of play) for each sweep
+    DURATION: 60,
+    STATIC_BURSTS: 3,                     // every intercom crackles before she speaks
+    HINT_TIME: 3,                         // "Find cover. Now." shows once per run, then fades
+    QUIET_AFTER: 25                       // no scares / playstyle remarks around a sweep
+  },
+
   // ------------------------------------------------------------------ PLAYSTYLE REACTIONS (Update 8)
   // She watches how you play. Each remark is made once per run, when the behaviour is clear enough.
   PLAYSTYLE: {
@@ -762,6 +776,10 @@ const CONFIG = {
     footageReact: "You weren't supposed to find that terminal, Doctor.",
     photoEndA: "You kept the photo. I noticed that. I don't know what to do with that information.",
     marcusVoicemail: "Hey, it's me. Working late again. Don't wait up. Tell the kids I'll be home for breakfast. I love you.",
+    // Update 9: ventilation sweep
+    sweepStart: "Initiating ventilation sweep in 60 seconds.",
+    sweepClean: "Clean. Let's continue.",
+    sweepHint: "Find cover. Now.",
     // Update 8: playstyle reactions
     styleSprint: "You're loud, Doctor. Fear does that.",
     styleCrouch: "You move like you're trying not to exist. Smart.",

@@ -100,6 +100,10 @@ const Sound = (function () {
     const fl = filt('lowpass', 900); fl.connect(flashGain);
     osc('square', 118, gain(0.5, fl)); osc('sawtooth', 237, gain(0.3, fl));
 
+    // --- ventilation sweep: a thin hiss in the walls that builds as the countdown runs down
+    sweepGain = gain(0, amb);
+    const swHp = filt('highpass', 2400); swHp.connect(sweepGain); loopNoise(swHp);
+
     // --- drone wheel: filtered noise + a faint motor tone, panned in 3D
     wheelPan = a.createPanner();
     wheelPan.panningModel = 'HRTF'; wheelPan.distanceModel = 'inverse';
@@ -113,7 +117,7 @@ const Sound = (function () {
 
   // The intercom hiss under ARIA's voice (speechSynthesis cannot be routed through
   // Web Audio, so the "radio" colour is layered beneath it instead).
-  let bed = null, bedOn = false, crackleT = 0, crawlK = 0;
+  let bed = null, bedOn = false, crackleT = 0, crawlK = 0, sweepK = 0, sweepGain = null;
   let holdT = 0, holdIdx = 0;
   const HOLD_TUNE = [392, 494, 587, 494, 440, 523, 659, 523, 392, 494, 587, 784, 698, 587, 523, 440];   // a slow looping 'please hold' tune
   function buildBed() {
@@ -428,6 +432,7 @@ const Sound = (function () {
     const near = clamp01(1 - Math.hypot(dx, dz, dy) / 42);
     ramp(humGain.gain, Math.max(level * (0.035 + 0.3 * near * near), crawlK * 0.85), 0.3);   // crawling: the hum becomes deafening
     ramp(buzzGain.gain, level * 0.012, 0.5);
+    ramp(sweepGain.gain, quiet ? 0 : sweepK * 0.09, 0.4);
 
     // flashlight buzz on a low battery in the tunnels
     const F = C.FLASHLIGHT;
@@ -510,5 +515,5 @@ const Sound = (function () {
     Player.onStep = function (S) { play('footstep', { floor: S.floor, sprint: S.sprinting, crouch: S.crouching }); };
   }
 
-  return { init: init, update: update, unlock: unlock, voiceBed: voiceBed, setCrawl: function (k) { crawlK = k; }, stopOneShots: stopOneShots, setMuted: setMuted, isMuted: () => muted, play: play };
+  return { init: init, update: update, unlock: unlock, voiceBed: voiceBed, setCrawl: function (k) { crawlK = k; }, setSweep: function (k) { sweepK = k; }, stopOneShots: stopOneShots, setMuted: setMuted, isMuted: () => muted, play: play };
 })();

@@ -400,6 +400,7 @@ const Dialogue = (function () {
       if (!started) { started = true; scheduleAmbient(true); }
       if (now() >= nextAmbient) {
         const P = GameState.player;
+        if (GameState.sweep && GameState.sweep.active) { nextAmbient = now() + 10; return; }
         const m = floorMult();
         if (m > 1 && Math.random() > 1 / m) { scheduleAmbient(false); return; }      // higher up she talks less and less
         const calm = (GameState.threat || 0) < A.LINE_MAX_THREAT && !P.hiding;

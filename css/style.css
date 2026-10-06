@@ -445,3 +445,21 @@ html, body {
 /* ---------- Update 7: whispers ---------- */
 #dlg.whisper .dlg-line { font-size: 0.82em; font-style: italic; opacity: 0.55; letter-spacing: 0.04em; }
 #dlg.whisper .dlg-speaker { opacity: 0.5; }
+
+/* ---------- Update 9: ventilation sweep ---------- */
+#sweep-hud {
+  position: fixed; top: 7%; left: 50%; transform: translateX(-50%); z-index: 9; pointer-events: none;
+  text-align: center; font-family: "Courier New", monospace; letter-spacing: 0.25em;
+  color: #e02a2a; text-shadow: 0 0 12px rgba(255, 0, 0, 0.5);
+}
+#sweep-hud .sw-label { font-size: 12px; opacity: 0.85; }
+#sweep-hud .sw-time { font-size: clamp(28px, 4vw, 46px); }
+#sweep-hud.urgent .sw-time { animation: swPulse 0.5s steps(2) infinite; }
+#sweep-hud.safe { color: #40d070; text-shadow: 0 0 12px rgba(0, 255, 100, 0.4); }
+@keyframes swPulse { 50% { opacity: 0.3; } }
+#sweep-hint {
+  position: fixed; left: 50%; bottom: 9%; transform: translateX(-50%); z-index: 31; pointer-events: none;
+  color: #fff; font-size: 14px; letter-spacing: 0.2em; opacity: 0; transition: opacity 0.8s ease;
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
+}
+#sweep-hint.on { opacity: 1; }
