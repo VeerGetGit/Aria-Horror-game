@@ -129,5 +129,9 @@ const Scares = (function () {
     });
   }
 
-  return { init: init, update: update, resetRun: resetRun };
+  // shared with playstyle.js so the two never talk over each other
+  function free() { return eligible(); }
+  function hold(sec) { busyUntil = Math.max(busyUntil, playT + sec); }
+
+  return { init: init, update: update, resetRun: resetRun, free: free, hold: hold };
 })();

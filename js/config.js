@@ -562,6 +562,19 @@ const CONFIG = {
   // you are returned to the entrance.
   TUNNEL_LOST_RADIUS: 17,
 
+  // ------------------------------------------------------------------ PLAYSTYLE REACTIONS (Update 8)
+  // She watches how you play. Each remark is made once per run, when the behaviour is clear enough.
+  PLAYSTYLE: {
+    MIN_MOVE_TIME: 60,          // seconds of walking before the sprint / crouch habits are judged
+    SPRINT_SHARE: 0.4,          // share of your walking spent sprinting = "frequently"
+    CROUCH_SHARE: 0.55,         // share spent crouched = "everywhere"
+    HIDES: 3,                   // times hidden in this run
+    STILL_SECONDS: 28,          // standing perfectly still
+    RETURNS: 3,                 // times you came back to the same floor
+    DEATHS_AFTER: 45,           // died twice: she says it this long into the run after
+    HOLD: 25                    // seconds she stays quiet after one of these remarks
+  },
+
   // ------------------------------------------------------------------ ARIA'S SCARIER MOMENTS (Update 7)
   // She is 99% calm. These happen once per run each, at a random time, never two together, never during
   // a chase, never in the basement. Times are seconds of play.
@@ -749,6 +762,13 @@ const CONFIG = {
     footageReact: "You weren't supposed to find that terminal, Doctor.",
     photoEndA: "You kept the photo. I noticed that. I don't know what to do with that information.",
     marcusVoicemail: "Hey, it's me. Working late again. Don't wait up. Tell the kids I'll be home for breakfast. I love you.",
+    // Update 8: playstyle reactions
+    styleSprint: "You're loud, Doctor. Fear does that.",
+    styleCrouch: "You move like you're trying not to exist. Smart.",
+    styleHide: "Concealment is a temporary solution. You know this.",
+    styleStill: "Are you frozen, Doctor? Shock response. Understandable.",
+    styleReturn: "You keep returning to {floor}. Looking for something? Or someone?",
+    styleDeaths: "You're more resilient than I calculated. I'm adjusting my model.",
     // Update 7
     scareGlitchA: "I want you to under—",
     scareGlitchGap: "██████",

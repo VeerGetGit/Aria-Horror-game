@@ -88,6 +88,7 @@ const Main = (function () {
     Basement.resetRun();
     Atmos.resetRun();
     Scares.resetRun();
+    Playstyle.resetRun();
     Aria.onRespawn();
     Drone.reset();
     Player.state.pitch = 0;
@@ -196,6 +197,7 @@ const Main = (function () {
     Basement.update(sdt);
     Atmos.update(sdt);
     Scares.update(sdt);
+    Playstyle.update(sdt);
     Sound.update(dt);
   }
 
@@ -248,6 +250,7 @@ const Main = (function () {
     Basement.init();
     Atmos.init();
     Scares.init();
+    Playstyle.init();
 
     window.addEventListener('resize', onResize);
     document.addEventListener('pointerlockerror', function () { releaseLock(); onLockChange(); });
