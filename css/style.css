@@ -463,3 +463,11 @@ html, body {
   text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
 }
 #sweep-hint.on { opacity: 1; }
+
+/* ---------- Update 11: late hint ---------- */
+#late-hint {
+  position: fixed; left: 50%; bottom: 8%; transform: translateX(-50%); z-index: 31; pointer-events: none;
+  color: #fff; font-size: 14px; letter-spacing: 0.22em; opacity: 0; transition: opacity 1s ease;
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
+}
+#late-hint.on { opacity: 1; }

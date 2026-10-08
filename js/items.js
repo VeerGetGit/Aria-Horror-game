@@ -37,6 +37,17 @@ const Items = (function () {
     toastT = secs || C.TOAST_TIME;
   }
 
+  // a small white hint at the bottom centre, fades after `secs` seconds
+  let hintEl2 = null, hintT2 = 0;
+  function hint(text, secs) {
+    if (!hintEl2) { hintEl2 = mk('div', 'late-hint', 'hidden'); }
+    hintEl2.textContent = text;
+    hintEl2.classList.remove('hidden');
+    void hintEl2.offsetWidth;
+    hintEl2.classList.add('on');
+    hintT2 = secs || 4;
+  }
+
   function renderStrip() {
     stripEl.innerHTML = '';
     Object.keys(GameState.items).forEach(function (id) {
@@ -87,6 +98,7 @@ const Items = (function () {
       toastT -= dt;
       if (toastT <= 0) { toastEl.classList.remove('on'); }
     }
+    if (hintT2 > 0) { hintT2 -= dt; if (hintT2 <= 0 && hintEl2) hintEl2.classList.remove('on'); }
     const P = GameState.player;
     const playing = GameState.state === 'PLAYING';
     stripEl.classList.toggle('hidden', !playing || !Object.keys(GameState.items).length);
@@ -114,5 +126,5 @@ const Items = (function () {
     GameState.on('items_cleared', function () { renderStrip(); entry = null; lastFloor = null; });
   }
 
-  return { init: init, update: update, toast: toast, renderStrip: renderStrip, missing: missing };
+  return { init: init, update: update, toast: toast, hint: hint, renderStrip: renderStrip, missing: missing };
 })();

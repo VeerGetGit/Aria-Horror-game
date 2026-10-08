@@ -81,6 +81,8 @@ const CONFIG = {
     BOB: { WALK: 0.035, SPRINT: 0.06, CROUCH: 0.015, FREQ: 1.9 },
     STEP_STRIDE: { WALK: 1.7, SPRINT: 1.3, CROUCH: 2.2 }, // metres per step event
     NOISE_RADIUS: { IDLE: 0, CROUCH: 1.5, WALK: 6, SPRINT: 14 },
+    // subtle camera shake while the drone is chasing you in plain sight; stronger the closer it gets
+    CHASE_SHAKE: { RANGE: 14, MIN: 0.004, MAX: 0.032 },
     // Sprint safeguard: a held Shift can never run forever. After SPRINT_MAX_SECONDS the
     // player is winded (walks) until stamina climbs back to SPRINT_RESUME. Also keeps a single
     // unbroken Shift hold well under Windows' 8-second Filter Keys prompt.
@@ -320,6 +322,7 @@ const CONFIG = {
     HEIGHT: 1.15,
     PATROL_SPEED: 1.7,
     INVESTIGATE_SPEED: 2.6,
+    FIRE_CHASE_SPEED: 4.0,      // Ending B: the drone never loses you, but you can outrun it to the door
     CHASE_SPEED: 4.4,           // player sprints at 5.4: outrunnable, but loud
     SEARCH_SPEED: 2.4,
     TURN_RATE: 3.2,             // rad/s while patrolling
@@ -353,6 +356,8 @@ const CONFIG = {
       '2': { speedMult: 1.0, points: [[-24, 8], [-14, 8], [-2, 8], [9, 8], [24, 8], [9, 8], [-2, 8], [-14, 8]] },
       '1': { speedMult: 1.0, points: [[-24, -8], [-8, -8], [-8, -2], [-8, -8], [0, -8], [9, -8], [9, -2], [9, -8], [20, -8], [20, -2], [20, -8], [0, -8]] },
       '0': { speedMult: 1.0, points: [[-24, 9], [-14, 9], [-14, 2], [-14, 9], [9, 9], [9, 2], [9, 9], [24, 9], [24, 14], [-24, 14]] },
+      // during the lockdown the drone is confined to the Floor 3 corridor and sweeps all of it, end to end
+      '3L': { speedMult: 1.35, points: [[-24, -8], [-10, -8], [4, -8], [16, -8], [24, -8], [16, -8], [4, -8], [-10, -8]] },
       '3': { speedMult: 1.25, points: [[-24, -8], [-14, -8], [-14, 0], [-14, -8], [0, -8], [14, -8], [14, 0], [14, -8], [24, -8], [14, -8], [0, -8]] }
     }
   },
@@ -593,6 +598,17 @@ const CONFIG = {
     HOLD: 25                    // seconds she stays quiet after one of these remarks
   },
 
+  // ------------------------------------------------------------------ THE BUILDING BURNS (Update 11)
+  FIRE: {
+    FLAMES_CORRIDOR: 10,        // per upper floor, plus one at the threshold of every room (visible through the doorways)
+    SMOKE_PER_FLOOR: 14,
+    LIGHTS_PER_FLOOR: 4,
+    DEBRIS: [1.6, 4.2],         // seconds between falling ceiling debris
+    GROAN: [6, 12],             // seconds between structural groans (with a tremor)
+    ROAR_FULL_AT: 45            // crackling / roar reach full volume this many seconds after ignition
+  },
+  LATE_HINT: "Find another way in.",
+
   // ------------------------------------------------------------------ ARIA'S SCARIER MOMENTS (Update 7)
   // She is 99% calm. These happen once per run each, at a random time, never two together, never during
   // a chase, never in the basement. Times are seconds of play.
@@ -647,12 +663,12 @@ const CONFIG = {
     ARIA_AT: 7.0,
     LOOK_AT: 19.5,                // she is silent; the camera drifts toward the vent panel
     DURATION: 23,
-    VENT: { x: -8.5, y: 0.5, z: -6.33 },          // low on the corridor wall (crouch + E)
+    VENT: { x: 25.82, y: 0.5, z: -8 },            // the OPPOSITE end of Floor 3 from the server room: low on the east end wall (crouch + E)
     VENT_EXIT: { x: -11, z: -5.0, yaw: Math.PI }, // inside the server room, facing north
     CRAWL: {
       ORIGIN: { x: 140, z: 0 },   // the duct is built far outside the building
-      LENGTH: 16, WIDTH: 0.95, HEIGHT: 0.8, FLOOR_LIFT: 0.65,
-      SPEED: 1.0, IDLE_SPEED: 0.12, CLANK_EVERY: 0.9,
+      LENGTH: 36, WIDTH: 0.95, HEIGHT: 0.8, FLOOR_LIFT: 0.65,     // the whole length of the floor, back to the server room
+      SPEED: 1.5, IDLE_SPEED: 0.15, CLANK_EVERY: 1.2,
       FADE: 0.8
     }
   },

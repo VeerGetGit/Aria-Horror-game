@@ -26,7 +26,7 @@ const Drone = (function () {
   const SH = C.STAIRS;
 
   const d = {
-    x: 0, z: 0, floor: 2, yaw: 0, state: 'OFF',
+    x: 0, z: 0, floor: 2, yaw: 0, state: 'OFF', lockFloor: null, relentless: false,
     path: [], pi: 0, repathT: 0,
     patrolIdx: 0, pauseT: 0, scanT: 0,
     target: null, lastSeen: null,
@@ -222,8 +222,13 @@ const Drone = (function () {
   // ------------------------------------------------------------------ state changes
   function setState(s) { d.state = s; d.repathT = 0; }
 
+  // the patrol route in force: during a lockdown the drone sweeps the whole corridor of its locked floor
+  function routeFor(floor) {
+    return D.PATROLS[(d.lockFloor === floor && D.PATROLS[floor + 'L']) ? floor + 'L' : String(floor)];
+  }
+
   function startPatrol() {
-    const route = D.PATROLS[String(d.floor)];
+    const route = routeFor(d.floor);
     if (!route) { setState('OFF'); return; }
     // head for the nearest waypoint
     let best = 0, bd = 1e9;
@@ -284,7 +289,7 @@ const Drone = (function () {
   // pick the patrol point on `floor` that is furthest from the player
   function placeFar(floor) {
     const P = GameState.player;
-    const route = D.PATROLS[String(floor)];
+    const route = routeFor(floor);
     if (!route) return;
     let best = route.points[0], bd = -1;
     route.points.forEach(p => {
@@ -301,10 +306,44 @@ const Drone = (function () {
   }
 
   function reset() {
-    d.detectT = 0; d.loseT = 0;
+    d.detectT = 0; d.loseT = 0; d.lockFloor = null; d.relentless = false;
     const P = GameState.player;
     if (P.floor === -1) { setState('OFF'); d.offT = 0; return; }
     placeFar(P.floor);
+  }
+
+  // Floor 3 lockdown: ARIA sends the drone up at once and it stays there, sweeping the whole corridor.
+  function lockdown(floor) {
+    d.lockFloor = floor; d.relentless = false;
+    placeFar(floor);
+  }
+  function unlock() { d.lockFloor = null; }
+
+  // Ending B: the drone hunts you across every floor, through the smoke, all the way to the exit door.
+  function fireChase(ex) {
+    d.lockFloor = null; d.relentless = true;
+    const P = GameState.player, route = D.PATROLS[String(P.floor)];
+    if (!route) return;
+    let best = null, bs = -1;                      // start behind you: far from the exit, not on top of you
+    route.points.forEach(p => {
+      if (Math.hypot(p[0] - P.x, p[1] - P.z) < 12) return;
+      const de = Math.hypot(p[0] - ex.x, p[1] - ex.z);
+      if (de > bs) { bs = de; best = p; }
+    });
+    if (!best) best = route.points[0];
+    place(P.floor, best[0], best[1]);
+    d.lastSeen = { x: P.x, z: P.z }; d.loseT = 0;
+    setState('CHASE');
+    emit('drone_spot', { floor: P.floor });
+  }
+
+  // 0 .. 1: how close the drone is, but ONLY while it is chasing and can see you (drives the camera shake)
+  function chaseProximity(range) {
+    const P = GameState.player;
+    if (d.state !== 'CHASE' || P.floor !== d.floor || P.hiding) return 0;
+    const dist = Math.hypot(P.x - d.x, P.z - d.z);
+    if (dist >= range || !hasLOS(d.floor, d.x, d.z, P.x, P.z)) return 0;
+    return 1 - dist / range;
   }
 
   function despawn() { setState('OFF'); d.offT = 0; }
@@ -316,7 +355,7 @@ const Drone = (function () {
     setState('HOLD');
   }
 
-  function hide() { setState('OFF'); d.offT = -9999; }  // stays away until reset()/hold()
+  function hide() { d.lockFloor = null; d.relentless = false; setState('OFF'); d.offT = -9999; }  // stays away until reset()/hold()
 
   function release(x, z) {
     setState('INVESTIGATE');
@@ -327,9 +366,10 @@ const Drone = (function () {
   // ------------------------------------------------------------------ main update
   function updateBrain(dt, t, P) {
     // player left the drone's floor
-    if (P.floor === -1 && d.state !== 'OFF') { despawn(); return; }
+    if (P.floor === -1 && d.state !== 'OFF' && d.lockFloor === null) { despawn(); return; }
 
     if (d.state === 'OFF') {
+      if (d.lockFloor !== null) { d.offT += dt; if (d.offT > 2) placeFar(d.lockFloor); return; }
       if (P.floor !== -1) { d.offT += dt; if (d.offT > 6) placeFar(P.floor); }
       return;
     }
@@ -339,13 +379,13 @@ const Drone = (function () {
       if (P.floor === d.floor) { // player came back before the drone left
         setState('SEARCH'); d.searchT = 0; d.searchPhase = 0;
         goTo(d.lastSeen.x, d.lastSeen.z);
-      } else if (d.stairT > D.STAIR_FOLLOW_DELAY) {
+      } else if (d.stairT > (d.relentless ? 2.0 : D.STAIR_FOLLOW_DELAY)) {
         const sp = C.LAYOUT[String(P.floor)].spawn;
         const alt = [sp.x - 8, sp.x + 8].sort((a, b) => Math.abs(b - P.x) - Math.abs(a - P.x))[0];
         const far = Math.hypot(sp.x - P.x, sp.z - P.z) > 6 ? sp.x : alt;
         place(P.floor, far, sp.z);
         d.lastSeen = { x: P.x, z: P.z };
-        setState('SEARCH'); d.searchT = 0; d.searchPhase = 0; d.spots = [];
+        if (d.relentless) { setState('CHASE'); d.loseT = 0; } else { setState('SEARCH'); d.searchT = 0; d.searchPhase = 0; d.spots = []; }
         goTo(d.lastSeen.x, d.lastSeen.z);
       }
       return;
@@ -353,7 +393,10 @@ const Drone = (function () {
 
     if (d.state === 'CATCH' || d.state === 'HOLD') return;
 
-    if (P.floor !== d.floor) {
+    if (P.floor !== d.floor && d.lockFloor !== null) {
+      // lockdown: it never leaves its floor, whatever you do; it just keeps sweeping the corridor
+      if (d.state === 'CHASE' || d.state === 'SEARCH' || d.state === 'INVESTIGATE') startPatrol();
+    } else if (P.floor !== d.floor) {
       if (d.state === 'CHASE' || d.state === 'SEARCH' || d.state === 'INVESTIGATE') {
         d.lastSeen = d.lastSeen || { x: P.x, z: P.z };
         setState('STAIRS'); d.stairT = 0; return;
@@ -376,7 +419,7 @@ const Drone = (function () {
 
     switch (d.state) {
       case 'PATROL': {
-        const route = D.PATROLS[String(d.floor)];
+        const route = routeFor(d.floor);
         const speed = D.PATROL_SPEED * route.speedMult;
         if (d.pauseT > 0) {
           d.pauseT -= dt;
@@ -400,7 +443,8 @@ const Drone = (function () {
       }
       case 'CHASE': {
         d.sweep = 0;
-        if (sawNow) { d.lastSeen = { x: P.x, z: P.z }; d.loseT = 0; } else d.loseT += dt;
+        if (d.relentless && !P.hiding && P.floor === d.floor) { d.lastSeen = { x: P.x, z: P.z }; d.loseT = 0; }   // Ending B: it always knows where you are
+        else if (sawNow) { d.lastSeen = { x: P.x, z: P.z }; d.loseT = 0; } else d.loseT += dt;
         const dist = Math.hypot(P.x - d.x, P.z - d.z);
         if (P.floor === d.floor && !P.hiding && dist < D.CATCH_DISTANCE && (sawNow || dist < 0.7)) { caught(); return; }
         d.repathT -= dt;
@@ -408,7 +452,7 @@ const Drone = (function () {
           d.repathT = D.REPATH_INTERVAL;
           goTo(d.lastSeen.x, d.lastSeen.z);
         }
-        follow(dt, D.CHASE_SPEED, D.CHASE_TURN_RATE);
+        follow(dt, d.relentless ? D.FIRE_CHASE_SPEED : D.CHASE_SPEED, D.CHASE_TURN_RATE);
         if (d.loseT > D.LOSE_TIME) startSearch();
         break;
       }
@@ -537,7 +581,7 @@ const Drone = (function () {
     investigate: investigate,
     hasLOS: hasLOS,
     findPath: findPath,
-    watching: watching, call: call,
+    watching: watching, call: call, lockdown: lockdown, unlock: unlock, fireChase: fireChase, chaseProximity: chaseProximity,
     data: d,
     get state() { return d.state; }
   };

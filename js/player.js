@@ -394,6 +394,16 @@ const Player = (function () {
     camera.position.set(S.x, S.y + S.eye + bob, S.z);
     camera.rotation.y = S.yaw;
     camera.rotation.x = S.pitch;
+    // a chasing drone in plain sight: a small, constant tremor that grows as it closes in. It stops the instant
+    // you hide, break line of sight, change floor or step outside (chaseProximity is 0 then).
+    const cs = P.CHASE_SHAKE;
+    const prox = (typeof Drone !== 'undefined' && !World.exteriorActive) ? Drone.chaseProximity(cs.RANGE) : 0;
+    if (prox > 0) {
+      const amp = cs.MIN + (cs.MAX - cs.MIN) * prox;
+      camera.position.x += (Math.random() - 0.5) * 2 * amp;
+      camera.position.y += (Math.random() - 0.5) * 2 * amp;
+      camera.position.z += (Math.random() - 0.5) * 2 * amp;
+    }
     // camera shake (door slams, shaking hands in the opening)
     const sh = GameState.shake || 0;
     if (sh > 0) {

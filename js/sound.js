@@ -100,6 +100,10 @@ const Sound = (function () {
     const fl = filt('lowpass', 900); fl.connect(flashGain);
     osc('square', 118, gain(0.5, fl)); osc('sawtooth', 237, gain(0.3, fl));
 
+    // --- the burning building: a low roar that swells with the fire
+    roarGain = gain(0, amb);
+    const roarLp = filt('lowpass', 420, 0.8); roarLp.connect(roarGain); loopNoise(roarLp);
+
     // --- ventilation sweep: a thin hiss in the walls that builds as the countdown runs down
     sweepGain = gain(0, amb);
     const swHp = filt('highpass', 2400); swHp.connect(sweepGain); loopNoise(swHp);
@@ -118,7 +122,7 @@ const Sound = (function () {
   // The intercom hiss under ARIA's voice (speechSynthesis cannot be routed through
   // Web Audio, so the "radio" colour is layered beneath it instead).
   let bed = null, bedOn = false, crackleT = 0, crawlK = 0, sweepK = 0, sweepGain = null;
-  let holdT = 0, holdIdx = 0;
+  let holdT = 0, holdIdx = 0, fireCrackT = 0, roarGain = null;
   const HOLD_TUNE = [392, 494, 587, 494, 440, 523, 659, 523, 392, 494, 587, 784, 698, 587, 523, 440];   // a slow looping 'please hold' tune
   function buildBed() {
     bed = gain(0, amb);
@@ -335,6 +339,23 @@ const Sound = (function () {
       for (let i = 0; i < 9; i++) noiseShot(o, t + i * 0.16, 0.05, 'highpass', 3000, 0, [[0.002, 0.14], [0.05, 0.001]]);
       toneShot(o, t + 1.5, 'sine', 60, 40, 0.3, [[0.005, 0.2], [0.3, 0.001]]);
     },
+    fire_crackle: (t, d) => {
+      const f = 1200 + Math.random() * 4200, v = 0.03 + 0.1 * Math.random() * (0.4 + d.k);
+      noiseShot(sfx, t, 0.07, 'bandpass', f, 3, [[0.002, v], [0.06, 0.0005]]);
+      if (Math.random() < 0.3) toneShot(sfx, t, 'square', 90 + Math.random() * 60, 50, 0.05, [[0.002, v * 0.6], [0.05, 0.0005]]);
+    },
+    structure_groan: t => {                     // the building complaining: a long low metal / concrete groan
+      const o = toneShot(sfx, t, 'sawtooth', 62, 36, 3.2, [[0.7, 0.16], [2.0, 0.13], [3.2, 0.001]], true);
+      o.disconnect();
+      const lp = filt('lowpass', 260, 2), g = a.createGain();
+      env(g, t, [[0.7, 0.2], [2.0, 0.16], [3.2, 0.001]]); o.connect(lp); lp.connect(g); g.connect(sfx); g.connect(verb);
+      noiseShot(sfx, t + 0.2, 2.8, 'bandpass', 420, 6, [[0.8, 0.04], [2.0, 0.03], [2.8, 0.001]], true);
+    },
+    debris_hit: (t, d) => {
+      const o = panAt(d.x, d.y, d.z, 2);
+      toneShot(o, t, 'sine', 120, 45, 0.25, [[0.004, 0.4], [0.25, 0.001]], true);
+      noiseShot(o, t, 0.3, 'lowpass', 1400, 0, [[0.004, 0.3], [0.3, 0.001]], true);
+    },
     wall_scratch: (t, d) => {                 // something scratching inside the wall
       const o = panAt(d.x, (GameState.player.y || 0) + 1.1, d.z, 2.5);
       const n = 7 + Math.floor(Math.random() * 9);
@@ -433,6 +454,11 @@ const Sound = (function () {
     ramp(humGain.gain, Math.max(level * (0.035 + 0.3 * near * near), crawlK * 0.85), 0.3);   // crawling: the hum becomes deafening
     ramp(buzzGain.gain, level * 0.012, 0.5);
     ramp(sweepGain.gain, quiet ? 0 : sweepK * 0.09, 0.4);
+    // fire: crackling and the roar both get louder the longer it burns
+    const fk = World.fireOn ? Math.min(1, World.fireTime / C.FIRE.ROAR_FULL_AT) : 0;
+    ramp(roarGain.gain, quiet ? 0 : fk * 0.16, 0.5);
+    fireCrackT -= dt;
+    if (fk > 0 && fireCrackT <= 0 && !quiet) { fireCrackT = (0.05 + Math.random() * 0.35) * (1.7 - fk); play('fire_crackle', { k: fk }); }
 
     // flashlight buzz on a low battery in the tunnels
     const F = C.FLASHLIGHT;

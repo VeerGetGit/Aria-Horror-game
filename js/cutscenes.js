@@ -566,9 +566,11 @@ const Cutscenes = (function () {
       setup: function () {
         control(false);
         Dialogue.clear();
-        Drone.hide();
+        const exd = World.doors.find(d => d.exit);
+        if (exd) Drone.hold(0, exd.x - 1.4, exd.z, -Math.PI / 2);          // the door bursts open; the drone stops dead at the threshold
+        Dialogue.fx('door_slam');
         Player.state.flashlightOn = false;
-        GameState.shake = 0.35;
+        GameState.shake = 0.6;
         blackCover(K.FADE);
         cs.style.background = 'transparent';
         setTimeout(() => { cs.style.background = '#000'; }, 30);
@@ -586,6 +588,8 @@ const Cutscenes = (function () {
         Player.teleport(0, pos.x, pos.z, pos.yaw);
         Player.state.pitch = pos.pitch;
         World.enterExterior();
+        const exd2 = World.doors.find(d => d.exit);
+        if (exd2) Drone.hold(0, exd2.x + 0.9, exd2.z, -Math.PI / 2);        // it cannot follow you outside
         GameState.shake = 0;
         show(heldEl, GameState.hasItem('photo'));          // you hold it while the building burns. No dialogue.
         blackCover(0);
@@ -637,7 +641,7 @@ const Cutscenes = (function () {
   }
 
   // ------------------------------------------------------------------ E-key actions (terminal, plug, fire override, exit)
-  const E = { armed: false, fire: false, lockdown: false };
+  const E = { armed: false, fire: false, lockdown: false, lockHint: false };
 
   function playerSays(key) {
     Dialogue.say(C.DIALOGUE[key], 'act', { speaker: 'DR. ARYAN', static: false, interrupt: true, dur: 4.6 });
@@ -718,7 +722,7 @@ const Cutscenes = (function () {
         cs.style.transition = 'none'; cs.style.background = 'transparent'; show(cs, true);
         textEl.style.opacity = 0;
         this.events = [
-          { at: LK.ALARM_AT, fn: () => Dialogue.fx('alarm') },
+          { at: LK.ALARM_AT, fn: () => { Dialogue.fx('alarm'); Drone.lockdown(3); } },      // ARIA sends the drone to Floor 3 at once
           { at: LK.TEXT1_AT, fn: () => showText(LK.TEXT1, 'err', 2.4) },
           { at: LK.TEXT2_AT, fn: () => showText(LK.TEXT2, 'err', 2.6) },
           { at: LK.ARIA_AT, fn: () => say('lockdown') }
@@ -741,6 +745,7 @@ const Cutscenes = (function () {
         cs.style.background = 'transparent'; show(cs, false);
         textEl.className = ''; textEl.style.opacity = 0;
         World.setLockdown(true);                     // the vent is now the ONLY way in
+        if (!E.lockHint) { E.lockHint = true; Items.hint(C.LATE_HINT, 4); }     // "Find another way in." once per run
         GameState.cutsceneControl = false;
       }
     };
@@ -855,7 +860,7 @@ const Cutscenes = (function () {
     E.fire = true;
     World.startFire();
     const ex = World.doors.find(d => d.exit);
-    if (ex) ex.setLocked(false);
+    if (ex) { ex.setLocked(false); Drone.fireChase(ex); }        // ARIA sends the drone after you, floor after floor, to the door
     Dialogue.fx('alarm');
     GameState.shake = Math.max(GameState.shake || 0, 0.5);
     Dialogue.say(C.DIALOGUE.fireAria, 'act', { interrupt: true, dur: 3.6 });
@@ -886,7 +891,7 @@ const Cutscenes = (function () {
   // A new run: the story flags that belong to a single run start over.
   function resetRun() {
     gameCanvas.style.filter = ''; show(deathFx, false);          // no grayscale / death overlay survives a restart
-    E.armed = false; E.fire = false; E.lockdown = false;
+    E.armed = false; E.fire = false; E.lockdown = false; E.lockHint = false;
     M.figUsed = []; M.figLast = undefined; M.figCount = 0; M.figCool = 0; M.tunnelT = 0;
     footageSeen = false; vmUntil = 0;
     GameState.noteOpen = false;

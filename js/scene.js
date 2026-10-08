@@ -45,7 +45,7 @@ const World = (function () {
   const vitalsPanels = [];  // canvas wall screens that show the player's vitals (Stage 3)
   const calmObjs = { gore: [], blind: null, items: {} };   // items: carryable meshes by id (photo)
   let tagList = null;       // when set, decals created are collected here
-  const fire = { on: false, t: 0, sprites: [] };                       // Ending B: the ground floor burns
+  const fire = { on: false, t: 0, sprites: [], smoke: [], debris: [], debrisT: 2, groanT: 7 };                       // Ending B: the ground floor burns
   const ext = { group: null, active: false, t: 0, windows: [], flames: [], lights: [] };   // Ending B: the view from outside
   let blackoutOn = false;   // Ending A: ARIA is offline, everything dies
   const mats = {};
@@ -1166,7 +1166,7 @@ const World = (function () {
   // Floor 3 corridor extras: the vent panel (sealed until the lockdown) and the server door prompt.
   function buildLockdownProps(f) {
     const K = C.LOCKDOWN;
-    calmObjs.vent = textPlane(f, K.VENT.x, K.VENT.y, K.VENT.z, 0.9, 0.6, ['≡≡≡≡≡', '≡≡≡≡≡', '≡≡≡≡≡'], 's', { bg: '#4a3a3a', color: '#b8a0a0', size: 40, px: 256, border: '#8a6a6a' });
+    calmObjs.vent = textPlane(f, K.VENT.x, K.VENT.y, K.VENT.z, 0.9, 0.6, ['≡≡≡≡≡', '≡≡≡≡≡', '≡≡≡≡≡'], 'w', { bg: '#4a3a3a', color: '#b8a0a0', size: 40, px: 256, border: '#8a6a6a' });
     interactables.push({ id: 'server_vent', floor: f, x: K.VENT.x, y: K.VENT.y, z: K.VENT.z, disabled: true });
     interactables.push({ id: 'server_door', floor: f, x: K.DOOR.x, y: 1.2, z: K.DOOR.z });
   }
@@ -1488,7 +1488,101 @@ const World = (function () {
     for (let i = 0; i < 4; i++) fire.sprites.push(makeFlame(g, rr(-24, -6), 0.9, rr(-5, 5), 1.6, 2.4));
     [[-18, 9], [-4, 13], [10, 9], [20, 13], [-18, 0]].forEach(p => { addFixture({ floor: 0, x: p[0], y: 1.8, z: p[1], color: 0xff7a20, intensity: 1.6, distance: 12, mode: 'flicker', visible: false }).fireAdded = true; });
     // the red emergency lights give way to orange
-    fixtures.forEach(fx => { if (fx.floor === 0 && fx.group === 'corridor') { fx.preFire = fx.color; fx.color = 0xff5a10; fx.baseColor.setHex(0xff5a10); } });
+    // the red emergency lights of EVERY floor give way to a flickering orange
+    fixtures.forEach(fx => {
+      if (fx.floor >= 0 && fx.group === 'corridor' && fx.mode !== 'dead') {
+        fx.preFire = fx.color; fx.preMode = fx.mode;
+        fx.color = 0xff5a10; fx.baseColor.setHex(0xff5a10);
+        if (fx.mode === 'steady') fx.mode = 'flicker';
+      }
+    });
+    for (let f = 1; f <= 3; f++) addFloorFire(f);
+    for (let f = 0; f <= 3; f++) addSmoke(f);
+    fire.debrisT = rr(1, 2.5); fire.groanT = rr(3, 6);
+  }
+
+  // ----- fire on the upper floors: flames down the corridor and at the threshold of every room (seen through the doorways)
+  function addFloorFire(f) {
+    const F = C.FIRE, g = groups[f], Ld = C.LAYOUT[String(f)], cor = Ld.corridor;
+    const zlo = Math.min(cor.z1, cor.z2) + 0.7, zhi = Math.max(cor.z1, cor.z2) - 0.7;
+    for (let i = 0; i < F.FLAMES_CORRIDOR; i++) fire.sprites.push(makeFlame(g, rr(-23, 23), 1.0, rr(zlo, zhi), rr(1.3, 2.2), rr(1.9, 3.0)));
+    (Ld.rooms || []).forEach(r => {
+      const dr = r.doors && r.doors[0];
+      if (!dr) return;
+      const inside = dr.side === 'n' ? r.z2 - 0.9 : dr.side === 's' ? r.z1 + 0.9 : null;
+      if (inside !== null) fire.sprites.push(makeFlame(g, dr.at, 0.9, inside, rr(1.1, 1.7), rr(1.7, 2.5)));
+    });
+    for (let i = 0; i < F.LIGHTS_PER_FLOOR; i++) {
+      const fx = addFixture({ floor: f, x: -18 + i * 12 + rr(-2, 2), y: f * H + 1.8, z: (zlo + zhi) / 2, color: 0xff7a20, intensity: 1.5, distance: 11, mode: 'flicker', visible: false });
+      fx.fireAdded = true;
+    }
+  }
+
+  // ----- smoke drifting along every corridor
+  let smokeTex = null;
+  function addSmoke(f) {
+    if (!smokeTex) smokeTex = softTex('rgba(80,78,76,0.9)', 'rgba(80,78,76,0)');
+    const cor = C.LAYOUT[String(f)].corridor;
+    const zlo = Math.min(cor.z1, cor.z2) + 0.5, zhi = Math.max(cor.z1, cor.z2) - 0.5;
+    for (let i = 0; i < C.FIRE.SMOKE_PER_FLOOR; i++) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, transparent: true, depthWrite: false, opacity: 0 }));
+      sp.position.set(-24 + i * (48 / C.FIRE.SMOKE_PER_FLOOR) + rr(-1, 1), f * H + 0.5, rr(zlo, zhi));
+      groups[f].add(sp);
+      fire.smoke.push({ s: sp, f: f, ph: rand(), sp: rr(0.07, 0.14), x0: sp.position.x, z0: sp.position.z });
+    }
+  }
+
+  // ----- bits of the ceiling coming down near you
+  function spawnDebris(pp) {
+    const f = pp.floor, size = rr(0.12, 0.34);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(size, size * rr(0.5, 1), size * rr(0.7, 1.3)), lambert(0x3a3a3c));
+    const x = pp.x + rr(-6, 6), z = pp.z + rr(-5, 5);
+    m.position.set(x, f * H + B.CEIL_H - 0.1, z);
+    m.rotation.set(rand() * 3, rand() * 3, rand() * 3);
+    groups[f].add(m);
+    fire.debris.push({ m: m, f: f, vy: 0, size: size, landed: false, life: 7, spin: [rr(-3, 3), rr(-3, 3)] });
+  }
+
+  function updateFire(dt, t) {
+    fire.t += dt;
+    const grow = Math.min(1.5, 0.45 + fire.t * 0.22);
+    fire.sprites.forEach(f => {
+      const k = 1 + 0.22 * Math.sin(t * 9 + f.ph) + 0.12 * Math.sin(t * 17 + f.ph * 2);
+      f.s.scale.set(f.w * k * grow, f.h * (k + 0.1) * grow, 1);
+    });
+    fire.smoke.forEach(s => {
+      const p = (t * s.sp + s.ph) % 1;
+      s.s.position.y = s.f * H + 0.5 + p * 2.3;
+      s.s.position.x = s.x0 + Math.sin(t * 0.5 + s.ph * 9) * 0.6 + p * 1.2;
+      s.s.scale.setScalar(0.9 + p * 2.6);
+      s.s.material.opacity = Math.sin(p * Math.PI) * 0.3 * Math.min(1, grow);
+    });
+    if (ext.active) return;
+    // falling debris near the player, now and then; a groan and a tremor every so often: the building is coming apart
+    fire.debrisT -= dt;
+    if (fire.debrisT <= 0 && dimPos.floor >= 0) { fire.debrisT = rr(C.FIRE.DEBRIS[0], C.FIRE.DEBRIS[1]); spawnDebris(dimPos); }
+    fire.groanT -= dt;
+    if (fire.groanT <= 0) {
+      fire.groanT = rr(C.FIRE.GROAN[0], C.FIRE.GROAN[1]);
+      GameState.emit('structure_groan', {});
+      GameState.shake = Math.max(GameState.shake || 0, 0.4);
+    }
+    for (let i = fire.debris.length - 1; i >= 0; i--) {
+      const b = fire.debris[i];
+      if (!b.landed) {
+        b.vy -= 9.8 * dt; b.m.position.y += b.vy * dt;
+        b.m.rotation.x += b.spin[0] * dt; b.m.rotation.z += b.spin[1] * dt;
+        const floorY = b.f * H + b.size * 0.4;
+        if (b.m.position.y <= floorY) {
+          b.m.position.y = floorY; b.landed = true;
+          GameState.emit('debris_hit', { x: b.m.position.x, y: floorY + 0.2, z: b.m.position.z, floor: b.f });
+          if (b.f === dimPos.floor && Math.hypot(b.m.position.x - dimPos.x, b.m.position.z - dimPos.z) < 5) GameState.shake = Math.max(GameState.shake || 0, 0.3);
+        }
+      } else if ((b.life -= dt) <= 0) {
+        if (b.m.parent) b.m.parent.remove(b.m);
+        fire.debris.splice(i, 1);
+      }
+    }
   }
 
   // The drone caught the player mid-escape: the fire goes out and the building is as it was.
@@ -1497,8 +1591,14 @@ const World = (function () {
     fire.on = false; fire.t = 0;
     fire.sprites.forEach(f => { if (f.s.parent) f.s.parent.remove(f.s); });
     fire.sprites = [];
+    fire.smoke.forEach(s => { if (s.s.parent) s.s.parent.remove(s.s); });
+    fire.smoke = [];
+    fire.debris.forEach(b => { if (b.m.parent) b.m.parent.remove(b.m); });
+    fire.debris = [];
     fixtures.forEach(fx => { if (fx.fireAdded) fx.suppressed = true; });
-    fixtures.forEach(fx => { if (fx.floor === 0 && fx.group === 'corridor' && fx.preFire) { fx.color = fx.preFire; fx.baseColor.setHex(fx.preFire); } });
+    fixtures.forEach(fx => {
+      if (fx.group === 'corridor' && fx.preFire !== undefined) { fx.color = fx.preFire; fx.baseColor.setHex(fx.preFire); fx.mode = fx.preMode || fx.mode; fx.preFire = undefined; }
+    });
   }
 
   function setDrawerOpen(on) {
@@ -1575,14 +1675,7 @@ const World = (function () {
   }
 
   function updateExtras(dt, t) {
-    if (fire.on) {
-      fire.t += dt;
-      const grow = Math.min(1.5, 0.45 + fire.t * 0.22);
-      fire.sprites.forEach(f => {
-        const k = 1 + 0.22 * Math.sin(t * 9 + f.ph) + 0.12 * Math.sin(t * 17 + f.ph * 2);
-        f.s.scale.set(f.w * k * grow, f.h * (k + 0.1) * grow, 1);
-      });
-    }
+    if (fire.on) updateFire(dt, t);
     if (ext.active) {
       ext.t += dt;
       const burn = Math.min(1, 0.25 + ext.t * 0.05);
@@ -1723,6 +1816,7 @@ const World = (function () {
     startFire: startFire,
     enterExterior: enterExterior,
     get fireOn() { return fire.on; },
+    get fireTime() { return fire.t; },
     get exteriorActive() { return ext.active; },
     vitalsPanels: vitalsPanels,
     doors: doors,
