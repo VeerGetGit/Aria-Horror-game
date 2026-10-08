@@ -885,6 +885,7 @@ const Cutscenes = (function () {
 
   // A new run: the story flags that belong to a single run start over.
   function resetRun() {
+    gameCanvas.style.filter = ''; show(deathFx, false);          // no grayscale / death overlay survives a restart
     E.armed = false; E.fire = false; E.lockdown = false;
     M.figUsed = []; M.figLast = undefined; M.figCount = 0; M.figCool = 0; M.tunnelT = 0;
     footageSeen = false; vmUntil = 0;
@@ -1267,7 +1268,7 @@ const Cutscenes = (function () {
     }
 
     // once per playthrough: the intercoms go silent for 60 s, then one quiet line, then silence again
-    if (M.silence === 'idle' && M.play >= AM.SILENCE_AT && (GameState.threat || 0) < 0.3 && !P.hiding) {
+    if (M.silence === 'idle' && !C.DEBUG.ARIA_OFF && M.play >= AM.SILENCE_AT && (GameState.threat || 0) < 0.3 && !P.hiding) {
       M.silence = 'quiet'; M.silenceUntil = GameState.time + AM.SILENCE_DURATION;
       Dialogue.mute(AM.SILENCE_DURATION);
     } else if (M.silence === 'quiet' && GameState.time >= M.silenceUntil) {

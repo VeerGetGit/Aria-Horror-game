@@ -41,7 +41,7 @@ const Playstyle = (function () {
   }
 
   function update(dt) {
-    if (GameState.state !== 'PLAYING' || dt <= 0) return;
+    if (GameState.state !== 'PLAYING' || dt <= 0 || C.DEBUG.ARIA_OFF) return;
     const P = GameState.player;
     st.playT += dt;
 

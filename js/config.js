@@ -37,8 +37,8 @@ const CONFIG = {
   // ------------------------------------------------------------------ BUILDING
   BUILDING: {
     FLOOR_H: 4,                 // floor-to-floor distance
-    CEIL_H: 3.4,                // usable height; the rest is slab
-    SLAB_T: 0.6,
+    CEIL_H: 3.0,                // usable height (tight and enclosed; never above 3.5)
+    SLAB_T: 1.0,                // = FLOOR_H - CEIL_H: the slab fills EXACTLY the space above the walls, so there is no gap
     WALL_T: 0.3,
     DOOR_W: 1.4,
     DOOR_H: 2.3,
@@ -104,11 +104,12 @@ const CONFIG = {
   // ------------------------------------------------------------------ FLASHLIGHT / BATTERY
   FLASHLIGHT: {
     COLOR: 0xfff1d6,
-    INTENSITY: 4,
-    DISTANCE: 25,
-    ANGLE: 0.45,
-    PENUMBRA: 0.45,
-    DECAY: 1.4,
+    INTENSITY: 10,              // a tight, strong beam ...
+    DISTANCE: 50,               // ... that carries far
+    ANGLE: 0.2,                 // small radius (was 0.45)
+    TUNNEL_FOG_MULT: 0.4,       // the tunnel fog thins to this fraction while the torch is on, so the far beam is visible
+    PENUMBRA: 0.2,
+    DECAY: 1.2,
     START_ON_IN_TUNNELS: true,
     BATTERY_MAX: 100,
     BATTERY_DRAIN: 0.05,        // battery % lost per second, only in the basement tunnels
@@ -177,6 +178,9 @@ const CONFIG = {
     ENABLED: false,             // true = debug floor-jump keys 1-5 work
     SHOW_FPS: false,            // start state of the FPS line (F2 toggles it in game)
     SHOW_POSITION: false,       // start state of the position/state readout (F2 toggles it)
+    ARIA_OFF: false,             // TEST: deactivates ARIA's autonomous behaviour (drone, cameras, door locks, ambient lines, scares, sweeps) so the whole building can be explored. Set to false for the real game.
+    BRIGHT_BASEMENT: false,      // TEST: lights the tunnels up so everything can be checked. Set to false for the real pitch-black basement.
+    BASEMENT_LIGHT: { color: 0xb4b8c4, intensity: 2.4, fog: 0x0a0c10, density: 0.012 },
     SKIP_OPENING: false,        // true = skip the 6 opening scenes and start playing at once,
     TELEPORT_KEYS: { Digit1: 2, Digit2: 1, Digit3: -1, Digit4: 3, Digit5: 0 }
   },
@@ -643,7 +647,7 @@ const CONFIG = {
     ARIA_AT: 7.0,
     LOOK_AT: 19.5,                // she is silent; the camera drifts toward the vent panel
     DURATION: 23,
-    VENT: { x: -8.5, y: 0.5, z: -6.15 },          // low on the corridor wall (crouch + E)
+    VENT: { x: -8.5, y: 0.5, z: -6.33 },          // low on the corridor wall (crouch + E)
     VENT_EXIT: { x: -11, z: -5.0, yaw: Math.PI }, // inside the server room, facing north
     CRAWL: {
       ORIGIN: { x: 140, z: 0 },   // the duct is built far outside the building

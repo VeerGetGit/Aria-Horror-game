@@ -295,8 +295,31 @@ const Player = (function () {
     if (p) { if (GameState.emit) GameState.emit('ladder', p); teleport(p.to.floor, p.to.x, p.to.z); }
   }
 
+  // nearest spot (within 4 m) where the player's body is not inside a wall or prop
+  function freeSpot(fl, x, z) {
+    if (!World.blocked(fl, x, z, P.RADIUS)) return { x: x, z: z };
+    for (let r = 0.25; r <= 4; r += 0.25) {
+      for (let k = 0; k < 16; k++) {
+        const a = k * Math.PI / 8, nx = x + Math.cos(a) * r, nz = z + Math.sin(a) * r;
+        if (!World.blocked(fl, nx, nz, P.RADIUS)) return { x: nx, z: nz };
+      }
+    }
+    return { x: x, z: z };
+  }
+
+  // safety net: if the body ends up inside geometry for a moment, push it back out. You can never stay stuck in a wall.
+  function unstick(dt) {
+    if (World.blocked(S.floor, S.x, S.z, P.RADIUS * 0.5)) S.stuckT = (S.stuckT || 0) + dt; else S.stuckT = 0;
+    if (S.stuckT > 0.3) {
+      const fs = freeSpot(S.floor, S.x, S.z);
+      S.x = fs.x; S.z = fs.z; S.vx = S.vz = 0; S.stuckT = 0;
+    }
+  }
+
   function teleport(floor, x, z, yaw) {
     S.floor = floor;
+    const fs = freeSpot(floor, x, z);
+    x = fs.x; z = fs.z;
     S.x = x; S.z = z; S.y = floor * H;
     S.vx = S.vz = 0;
     S.hiding = null;
@@ -316,6 +339,7 @@ const Player = (function () {
     camera.rotation.order = 'YXZ';
 
     spot = new THREE.SpotLight(F.COLOR, 0, F.DISTANCE, F.ANGLE, F.PENUMBRA, F.DECAY);
+    spot.position.set(0, 0, 0);               // THREE's SpotLight starts 1 m above its parent: that tilted the beam 45 degrees down at your feet
     spotTarget = new THREE.Object3D();
     spotTarget.position.set(0, 0, -1);
     camera.add(spot);
@@ -348,7 +372,7 @@ const Player = (function () {
   function update(dt, t) {
     dt = Math.min(dt, P.MAX_DT);
     S.hideCool = Math.max(0, S.hideCool - dt);
-    if (!S.frozen && canControl() && !S.hiding && !GameState.noteOpen) move(dt);
+    if (!S.frozen && canControl() && !S.hiding && !GameState.noteOpen) { move(dt); unstick(dt); }
     else { S.moving = false; S.noiseRadius = 0; }
 
     const fl = World.floorOf(S.y);

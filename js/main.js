@@ -82,6 +82,7 @@ const Main = (function () {
   // Core rule: ANY death restarts the whole run from Scene 1. No checkpoints, every item is lost.
   // The world, the drone's patrol routes and ARIA's memory of how you play stay exactly as they were.
   function restartRun() {
+    canvas.style.filter = '';                  // the death sequence's grayscale is gone for good
     GameState.clearItems();
     World.resetRun();
     Cutscenes.resetRun();

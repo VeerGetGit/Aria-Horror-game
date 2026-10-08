@@ -340,6 +340,7 @@ const World = (function () {
     return 'steady';
   }
 
+  let fogBase = 0.05;
   let curT = 0, dimTarget = 0, dimAmt = 0, dimPos = { floor: 99, x: 0, z: 0 };
 
   function updateFixtures(dt, t) {
@@ -796,8 +797,8 @@ const World = (function () {
       calmObjs.items.maintenance_keycard = pbox(f, -12.9, -3.95, 0.14, 0.012, 0.09, lambert(0x2a6ad0), { y: 0.78, collide: false, rotY: 0.4 });
       interactables.push({ id: 'maintenance_keycard', floor: f, x: -12.9, y: 0.8, z: -3.95 });
       // Ventilation grate low on the east wall: the desk key is inside (crouch + E)
-      textPlane(f, -10.15, 0.45, -1.2, 0.6, 0.4, ['≡≡≡≡≡', '≡≡≡≡≡', '≡≡≡≡≡'], 'w', { bg: '#26262a', color: '#6a6a70', size: 40, px: 256, border: '#3a3a40' });
-      interactables.push({ id: 'desk_key', floor: f, x: -10.15, y: 0.45, z: -1.2 });
+      textPlane(f, -10.17, 0.45, -1.2, 0.6, 0.4, ['≡≡≡≡≡', '≡≡≡≡≡', '≡≡≡≡≡'], 'w', { bg: '#26262a', color: '#6a6a70', size: 40, px: 256, border: '#3a3a40' });
+      interactables.push({ id: 'desk_key', floor: f, x: -10.17, y: 0.45, z: -1.2 });
     },
 
     office_marcus: function (f, r) {
@@ -882,7 +883,7 @@ const World = (function () {
     cooling: function (f, r) {
       pcyl(f, 16, -13, 1.2, 3.0, mats.metal, { seg: 18 });
       pcyl(f, 22, -13, 1.2, 3.0, mats.metal, { seg: 18 });
-      pipeRun(f, 14, 3.0, -15.6, 26, -15.6, 0.15);
+      pipeRun(f, 14, 2.7, -15.6, 26, -15.6, 0.15);
       pipeRun(f, 14, 2.6, -10.4, 26, -10.4, 0.1);
       body(f, 24.3, -11.2, 0.3, 'slumped');
     },
@@ -912,7 +913,7 @@ const World = (function () {
       addFixture({ floor: f, x: -24, y: ceilY(f), z: 0, color: 0x2f6bff, intensity: 1.1, distance: 9, mode: 'steady', size: [0.5, 0.5] });
       // where the vent lets you out (inside the south wall, central aisle)
       const VX = C.LOCKDOWN.VENT_EXIT;
-      textPlane(f, VX.x, 0.5, -6.1, 0.9, 0.6, ['≡≡≡≡≡', '≡≡≡≡≡', '≡≡≡≡≡'], 'n', { bg: '#1c2433', color: '#4a5a78', size: 40, px: 256, border: '#2a3550' });
+      textPlane(f, VX.x, 0.5, -5.98, 0.9, 0.6, ['≡≡≡≡≡', '≡≡≡≡≡', '≡≡≡≡≡'], 'n', { bg: '#1c2433', color: '#4a5a78', size: 40, px: 256, border: '#2a3550' });
     },
 
     control: function (f, r) {
@@ -1078,7 +1079,7 @@ const World = (function () {
       C.LAYOUT[String(f)].rooms.forEach(r => {
         const door = r.doors && r.doors[0];
         const fromN = door && door.side === 'n';
-        const x = r.x1 + (r.x2 - r.x1) * 0.78, z = fromN ? r.z1 + 0.05 : r.z2 - 0.05;
+        const x = r.x1 + (r.x2 - r.x1) * 0.78, z = fromN ? r.z1 + 0.18 : r.z2 - 0.18;     // on the wall face (walls are 0.3 thick)
         const m = new THREE.Mesh(new THREE.CircleGeometry(0.2, 20), clockMat);
         m.position.set(x, f * H + 2.35, z); m.rotation.y = fromN ? 0 : Math.PI;
         groups[f].add(m);
@@ -1115,14 +1116,14 @@ const World = (function () {
     [[1.85, 0.27], [1.55, 0.26], [1.2, 0.25], [0.85, 0.23], [0.5, 0.22], [0.26, 0.2]].forEach((p, i) => handprint(1, -25.85, p[0], -7.3 + i * 0.07, 'e', p[1]));
     smear(1, -25.88, 0.7, -7.0, 'e', 0.26, 1.2);
     //    one bloody fingerprint on a light switch
-    pbox(2, -12.7, 6.08, 0.08, 0.12, 0.02, mats.white, { y: 1.25, collide: false });
+    pbox(2, -12.7, 5.97, 0.08, 0.12, 0.02, mats.white, { y: 1.25, collide: false });
     const fp = new THREE.Mesh(new THREE.CircleGeometry(0.011, 10), mats.blood);
-    fp.scale.set(0.8, 1.2, 1); fp.position.set(-12.7, 2 * H + 1.3, 6.065); fp.rotation.y = Math.PI; groups[2].add(fp);
+    fp.scale.set(0.8, 1.2, 1); fp.position.set(-12.7, 2 * H + 1.3, 5.955); fp.rotation.y = Math.PI; groups[2].add(fp);
     //    a smear on the office window, from inside
     smear(2, -19.65, 1.5, 5.93, 's', 1.0, 0.9);
     // 7. an overturned chair blocks the specimen room doorway
-    chair(1, 9.0, -7.1, 0.6, true);
-    addCollider(1, 8.1, -7.5, 9.9, -6.4);
+    chair(1, 8.45, -7.0, 0.6, true);                 // knocked over beside the doorway, not across it: you can still get in
+    addCollider(1, 8.1, -7.4, 8.6, -6.6);
     // 8. a phone off the hook (the hold music plays near it)
     pbox(phoneAt.floor, phoneAt.x, phoneAt.z, 0.22, 0.05, 0.28, mats.dark, { y: 0.78, collide: false });
     pbox(phoneAt.floor, phoneAt.x + 0.55, phoneAt.z + 0.55, 0.07, 0.04, 0.24, mats.metalDark, { collide: false, rotY: 0.7 });
@@ -1139,7 +1140,7 @@ const World = (function () {
         const n = i % 2 === 0, x = -22 + i * 7 + Math.sin(i * 3.7) * 2;
         const base = 0.1 + 0.1 * Math.abs(Math.sin(i * 5.3));
         const m = new THREE.Mesh(new THREE.PlaneGeometry(0.6 + 0.3 * Math.abs(Math.sin(i * 2.1)), 2.2), new THREE.MeshBasicMaterial({ map: shTex, transparent: true, opacity: base, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
-        m.position.set(x, f * H + 1.3, n ? cor.z1 + 0.03 : cor.z2 - 0.03);
+        m.position.set(x, f * H + 1.3, n ? cor.z1 + 0.18 : cor.z2 - 0.18);
         m.rotation.y = n ? 0 : Math.PI;
         groups[f].add(m);
         shadowBands.push({ m: m, x: x, amp: 0.04 + 0.05 * Math.abs(Math.sin(i * 1.9 + f)), per: 9 + 13 * Math.abs(Math.sin(i * 2.7 + f * 1.3)), ph: i * 1.3 + f, base: base });
@@ -1165,13 +1166,14 @@ const World = (function () {
   // Floor 3 corridor extras: the vent panel (sealed until the lockdown) and the server door prompt.
   function buildLockdownProps(f) {
     const K = C.LOCKDOWN;
-    calmObjs.vent = textPlane(f, K.VENT.x, K.VENT.y, K.VENT.z - 0.04, 0.9, 0.6, ['≡≡≡≡≡', '≡≡≡≡≡', '≡≡≡≡≡'], 's', { bg: '#241818', color: '#6a4a4a', size: 40, px: 256, border: '#4a2a2a' });
-    interactables.push({ id: 'server_vent', floor: f, x: K.VENT.x, y: K.VENT.y, z: K.VENT.z - 0.04, disabled: true });
+    calmObjs.vent = textPlane(f, K.VENT.x, K.VENT.y, K.VENT.z, 0.9, 0.6, ['≡≡≡≡≡', '≡≡≡≡≡', '≡≡≡≡≡'], 's', { bg: '#4a3a3a', color: '#b8a0a0', size: 40, px: 256, border: '#8a6a6a' });
+    interactables.push({ id: 'server_vent', floor: f, x: K.VENT.x, y: K.VENT.y, z: K.VENT.z, disabled: true });
     interactables.push({ id: 'server_door', floor: f, x: K.DOOR.x, y: 1.2, z: K.DOOR.z });
   }
 
   // Lockdown: every Floor 3 door is sealed (the server door already was); the vent opens up.
   function setLockdown(on) {
+    if (calmObjs.vent) calmObjs.vent.material.emissive.setHex(on ? 0x7a3a2a : 0x000000);   // once the doors seal, the vent glows faintly so you can find it
     interactables.forEach(it => { if (it.id === 'server_vent') it.disabled = !on; });
   }
 
@@ -1317,7 +1319,7 @@ const World = (function () {
       }
     });
     const has = (i, j) => walk.has(key(i, j));
-    const y0 = f * H, yTop = y0 + B.TUNNEL_CEIL_H + 0.2;
+    const y0 = f * H, yTop = y0 + B.CEIL_H;     // walls run all the way up to the slab above: no slit around the stair shaft
     // gather wall edges, merge into runs
     const edges = { W: {}, E: {}, S: {}, N: {} };
     walk.forEach(k => {
@@ -1452,10 +1454,11 @@ const World = (function () {
     if (ext.active || ventActive || f === curFloor) return;
     curFloor = f;
     Object.keys(groups).forEach(k => { groups[k].visible = Math.abs(+k - f) <= C.RENDER.ACTIVE_FLOOR_RANGE; });
-    const a = L.AMBIENT[String(f)];
+    let a = L.AMBIENT[String(f)];
+    if (a && f === -1 && C.DEBUG.BRIGHT_BASEMENT) a = Object.assign({}, a, C.DEBUG.BASEMENT_LIGHT);   // test lighting (config DEBUG)
     if (a) {
       ambient.color.setHex(a.color); ambient.intensity = a.intensity;
-      scene.fog.color.setHex(a.fog); scene.fog.density = a.density;
+      scene.fog.color.setHex(a.fog); scene.fog.density = a.density; fogBase = a.density;
       scene.background.setHex(a.fog);
     }
   }
@@ -1658,6 +1661,11 @@ const World = (function () {
 
   function update(dt, t, playerPos) {
     dimPos.floor = playerPos.floor; dimPos.x = playerPos.x; dimPos.z = playerPos.z;
+    // in the tunnels the thick fog only thins out where your torch is pointing, so its long beam can actually be seen
+    if (curFloor === -1 && !ext.active && !ventActive) {
+      const target = playerPos.flashlightOn ? fogBase * C.FLASHLIGHT.TUNNEL_FOG_MULT : fogBase;
+      scene.fog.density += (target - scene.fog.density) * Math.min(1, dt * 4);
+    }
     updateFixtures(dt, t);
     updateDetails(dt, t);
     updateExtras(dt, t);

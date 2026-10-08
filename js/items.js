@@ -95,9 +95,13 @@ const Items = (function () {
     // tunnel map rule
     if (lostBusy > 0) lostBusy -= dt;
     if (P.floor === -1) {
-      if (lastFloor !== -1) entry = { x: P.x, z: P.z };
+      if (lastFloor !== -1) {                       // remember the nearest proper entrance (a ladder, or the foot of the stairs)
+        let best = null, bd = 1e9;
+        [{ x: -22.5, z: 10.5 }, { x: 22.5, z: 10.5 }, { x: 0, z: -9 }].forEach(function (p) { const d = Math.hypot(p.x - P.x, p.z - P.z); if (d < bd) { bd = d; best = p; } });
+        entry = { x: best.x, z: best.z, fromX: P.x, fromZ: P.z };
+      }
       else if (entry && lostBusy <= 0 && !GameState.hasItem('tunnel_map') &&
-               Math.hypot(P.x - entry.x, P.z - entry.z) > C.TUNNEL_LOST_RADIUS) lostInTunnels(P);
+               Math.hypot(P.x - entry.fromX, P.z - entry.fromZ) > C.TUNNEL_LOST_RADIUS) lostInTunnels(P);
     }
     lastFloor = P.floor;
   }

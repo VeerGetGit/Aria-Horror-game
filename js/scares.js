@@ -97,7 +97,7 @@ const Scares = (function () {
 
   function update(dt) {
     const P = GameState.player;
-    if (GameState.state !== 'PLAYING') return;
+    if (GameState.state !== 'PLAYING' || C.DEBUG.ARIA_OFF) return;
     playT += dt;
 
     // measure the hesitation at Paris's desk: from walking up to it until you read the note

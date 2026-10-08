@@ -48,6 +48,7 @@ const Aria = (function () {
 
   // ------------------------------------------------------------------ speech
   function say(key, force) {
+    if (C.DEBUG.ARIA_OFF) return false;
     const t = GameState.time;
     const prio = !!PRIORITY[key];
     if (!force && !prio && t - lastSay < A.SAY_COOLDOWN) return false;
@@ -223,6 +224,7 @@ const Aria = (function () {
 
   function update(dt, t) {
     const P = GameState.player;
+    if (C.DEBUG.ARIA_OFF) { GameState.threat = 0; return; }       // test mode: she is switched off (no cameras, no door locks, no threat)
     if (GameState.state !== 'PLAYING' || dt <= 0) { updateCameras(0, t, P); return; }
     trackDoors(P, t);
     lockTimer -= dt;

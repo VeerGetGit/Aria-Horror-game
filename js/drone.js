@@ -518,7 +518,8 @@ const Drone = (function () {
   function update(dt, t) {
     if (!initialised) return;
     const P = GameState.player;
-    if (dt > 0 && GameState.state === 'PLAYING') updateBrain(dt, t, P);
+    if (C.DEBUG.ARIA_OFF && GameState.state === 'PLAYING' && d.state !== 'OFF') setState('OFF');   // test mode: no drone
+    else if (!C.DEBUG.ARIA_OFF && dt > 0 && GameState.state === 'PLAYING') updateBrain(dt, t, P);
     updateVisuals(dt, t, P);
   }
 
